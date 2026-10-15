@@ -1,0 +1,43 @@
+{
+  "name": "@bom/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@bom/ai": "workspace:*",
+    "@bom/bom-io": "workspace:*",
+    "@bom/collab": "workspace:*",
+    "@bom/db": "workspace:*",
+    "@bom/dictionary": "workspace:*",
+    "@bom/domain": "workspace:*",
+    "@bom/engine": "workspace:*",
+    "@bom/exporters": "workspace:*",
+    "@bom/integrations": "workspace:*",
+    "@bom/workflow": "workspace:*",
+    "@bom/worker": "workspace:*",
+    "@bom/sync": "workspace:*",
+    "@hocuspocus/provider": "4.7.0",
+    "@react-three/drei": "10.7.9",
+    "@react-three/fiber": "9.8.1",
+    "next": "15.5.27",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "roughjs": "4.6.6",
+    "three": "0.186.1",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@bom/fixtures": "workspace:*",
+    "@playwright/test": "1.56.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@types/three": "0.186.0"
+  }
+}

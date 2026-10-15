@@ -1,6 +1,6 @@
 import type { Id } from './ids';
 import type { Role, Team, MeetingRole } from './teams';
-import type { Vec3, ChangeSource, Confidence } from './model';
+import type { Vec3, ChangeSource, Confidence, Patch } from './model';
 import type { WorkspaceSettings } from './settings';
 
 export interface User {
@@ -94,6 +94,8 @@ export interface Thread {
   /** Threads carry forward to the next draft; this links to the original. */
   carriedFromThreadId: Id | null;
   meetingId: Id | null;
+  /** Out-of-scope edit saved as a suggestion for the owning team (PRD §2); accepting applies it. */
+  suggestion?: Patch | null;
 }
 
 export interface Task {

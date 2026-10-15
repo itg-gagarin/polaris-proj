@@ -1,4 +1,6 @@
-import type { Patch, PatchOp, RevisionContent, Part, Assembly, Joint } from './model';
+import type { Patch, PatchOp, RevisionContent, Part, Assembly, Joint, PartField, ProductHeader } from './model';
+import { DIM_KEYS } from './model';
+import { canonicalJson } from './hash';
 import { newId } from './ids';
 
 export class PatchError extends Error {}
@@ -184,4 +186,51 @@ export function touchedPartIds(patch: Patch): string[] {
 
 export function makePatch(ops: PatchOp[], reason: string, source: Patch['source'] = 'user', extra: Partial<Patch> = {}): Patch {
   return { id: newId('patch'), ops, reason, source, ...extra };
+}
+
+/**
+ * The patch that turns `before` into `after` (field level). Used to persist edits that arrive as
+ * document changes (undo/redo, multi-field drags) and to audit snapshots.
+ */
+export function diffToPatch(before: RevisionContent, after: RevisionContent, reason: string, source: Patch['source'] = 'user'): Patch {
+  const ops: PatchOp[] = [];
+  const eq = (a: unknown, b: unknown) => canonicalJson(a ?? null) === canonicalJson(b ?? null);
+  const bParts = new Map(before.parts.map((p) => [p.id, p]));
+  const aParts = new Map(after.parts.map((p) => [p.id, p]));
+  for (const p of before.parts) if (!aParts.has(p.id)) ops.push({ op: 'removePart', partId: p.id });
+  for (const p of after.parts) {
+    const b = bParts.get(p.id);
+    if (!b) {
+      ops.push({ op: 'addPart', part: clone(p) });
+      continue;
+    }
+    for (const d of DIM_KEYS) {
+      if (b.dims[d] !== p.dims[d]) ops.push({ op: 'setDim', partId: p.id, dim: d, value: p.dims[d] });
+      if ((b.expressions[d] ?? null) !== (p.expressions[d] ?? null)) ops.push({ op: 'setExpr', partId: p.id, dim: d, expr: p.expressions[d] ?? null });
+    }
+    const idx = new Set([...Object.keys(b.instanceTransforms), ...Object.keys(p.instanceTransforms)].map(Number));
+    for (const i of idx) if (!eq(b.instanceTransforms[i], p.instanceTransforms[i])) ops.push({ op: 'setTransform', partId: p.id, instance: i, transform: p.instanceTransforms[i] ? clone(p.instanceTransforms[i]) : null });
+    for (const k of Object.keys({ ...b, ...p }) as (keyof Part)[]) {
+      if (k === 'id' || k === 'dims' || k === 'expressions' || k === 'instanceTransforms') continue;
+      if (!eq(b[k], p[k])) ops.push({ op: 'setField', partId: p.id, field: k as PartField, value: clone(p[k]) });
+    }
+  }
+  const byId = <T extends { id: string }>(xs: T[]) => new Map(xs.map((x) => [x.id, x]));
+  const bA = byId(before.assemblies);
+  const aA = byId(after.assemblies);
+  for (const a of before.assemblies) if (!aA.has(a.id)) ops.push({ op: 'removeAssembly', assemblyId: a.id });
+  for (const a of after.assemblies) {
+    const b = bA.get(a.id);
+    if (!b) ops.push({ op: 'addAssembly', assembly: clone(a) });
+    else for (const k of Object.keys({ ...b, ...a }) as (keyof Assembly)[]) if (k !== 'id' && !eq(b[k], a[k])) ops.push({ op: 'setAssembly', assemblyId: a.id, field: k, value: clone(a[k]) });
+  }
+  const bJ = byId(before.joints);
+  const aJ = byId(after.joints);
+  for (const j of before.joints) if (!aJ.has(j.id) || !eq(j, aJ.get(j.id))) ops.push({ op: 'removeJoint', jointId: j.id });
+  for (const j of after.joints) if (!bJ.has(j.id) || !eq(j, bJ.get(j.id))) ops.push({ op: 'addJoint', joint: clone(j) });
+  for (const k of new Set([...Object.keys(before.parameters), ...Object.keys(after.parameters)])) if (!eq(before.parameters[k], after.parameters[k])) ops.push({ op: 'setParameter', key: k, parameter: after.parameters[k] ? clone(after.parameters[k]) : null });
+  for (const k of new Set([...Object.keys(before.assumptions), ...Object.keys(after.assumptions)])) if (!eq(before.assumptions[k], after.assumptions[k])) ops.push({ op: 'setAssumption', key: k, assumption: after.assumptions[k] ? clone(after.assumptions[k]) : null });
+  for (const k of new Set([...Object.keys(before.waivers), ...Object.keys(after.waivers)])) if (!eq(before.waivers[k], after.waivers[k])) ops.push({ op: 'setWaiver', findingKey: k, waiver: after.waivers[k] ? clone(after.waivers[k]) : null });
+  for (const k of Object.keys({ ...before.header, ...after.header }) as (keyof ProductHeader)[]) if (!eq(before.header[k], after.header[k])) ops.push({ op: 'setHeader', field: k, value: clone(after.header[k]) });
+  return makePatch(ops, reason, source);
 }

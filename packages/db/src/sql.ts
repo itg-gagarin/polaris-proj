@@ -39,7 +39,7 @@ const T = {
     json: ['branch', 'content'],
   },
   reviews: { table: 'app.reviews', pk: ['id'], cols: { id: 'id', revisionId: 'revision_id', team: 'team', state: 'state', reviewerId: 'reviewer_id', hash: 'hash', checklist: 'checklist', comment: 'comment', at: 'at', resetReason: 'reset_reason' }, json: ['checklist'] },
-  threads: { table: 'app.threads', pk: ['id'], cols: { id: 'id', productId: 'product_id', revisionId: 'revision_id', anchor: 'anchor', status: 'status', kind: 'kind', tag: 'tag', task: 'task', createdAt: 'created_at', carriedFromThreadId: 'carried_from_thread_id', meetingId: 'meeting_id' }, json: ['anchor', 'task'] },
+  threads: { table: 'app.threads', pk: ['id'], cols: { id: 'id', productId: 'product_id', revisionId: 'revision_id', anchor: 'anchor', status: 'status', kind: 'kind', tag: 'tag', task: 'task', createdAt: 'created_at', carriedFromThreadId: 'carried_from_thread_id', meetingId: 'meeting_id', suggestion: 'suggestion' }, json: ['anchor', 'task', 'suggestion'] },
   comments: { table: 'app.comments', pk: ['id'], cols: { id: 'id', threadId: 'thread_id', authorId: 'author_id', body: 'body', mentions: 'mentions', attachments: 'attachments', createdAt: 'created_at', editedAt: 'edited_at' }, json: ['attachments'] },
   notifications: { table: 'app.notifications', pk: ['id'], cols: { id: 'id', userId: 'user_id', kind: 'kind', text: 'text', link: 'link', read: 'read', createdAt: 'created_at' } },
   boards: { table: 'app.boards', pk: ['id'], cols: { id: 'id', workspaceId: 'workspace_id', name: 'name', items: 'items' }, json: ['items'] },

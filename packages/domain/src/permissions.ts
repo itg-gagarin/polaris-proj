@@ -1,5 +1,5 @@
 import type { User } from './collab';
-import type { Part, PartField, RevisionState } from './model';
+import type { Part, PartField, Patch, PatchOp, RevisionContent, RevisionState } from './model';
 import type { Team, Role } from './teams';
 import type { WorkspaceSettings } from './settings';
 
@@ -86,4 +86,39 @@ export function can(user: User, action: Action, ctx: PermissionContext = {}): Pe
   }
 
   return ok();
+}
+
+export interface PatchClassification {
+  /** Ops the user may apply directly. */
+  direct: PatchOp[];
+  /** Out-of-scope ops, grouped by the team that owns them (saved as suggestions). */
+  suggestions: { team: Team; ops: PatchOp[] }[];
+  denied: { op: PatchOp; reason: string }[];
+}
+
+const GEOMETRY_OPS = new Set<PatchOp['op']>(['setDim', 'setExpr', 'setTransform']);
+
+/**
+ * Split a patch by permission, op by op (PRD §2): the same function runs in the browser before an
+ * edit reaches the shared document and on the server before it reaches the database.
+ */
+export function classifyPatch(user: User, content: RevisionContent, patch: Patch, settings: WorkspaceSettings, revisionState: RevisionState): PatchClassification {
+  const parts = new Map(content.parts.map((p) => [p.id, p]));
+  const out: PatchClassification = { direct: [], suggestions: [], denied: [] };
+  const suggest = (team: Team, op: PatchOp) => {
+    let s = out.suggestions.find((x) => x.team === team);
+    if (!s) out.suggestions.push((s = { team, ops: [] }));
+    s.ops.push(op);
+  };
+  for (const op of patch.ops) {
+    const action: Action = GEOMETRY_OPS.has(op.op) ? 'editGeometry' : 'editBom';
+    const partId = 'partId' in op ? op.partId : null;
+    const part = partId ? (parts.get(partId) ?? null) : null;
+    const field = op.op === 'setField' ? op.field : op.op === 'setDim' ? 'dims' : op.op === 'setExpr' ? 'expr' : op.op === 'setTransform' ? 'transform' : null;
+    const r = can(user, action, { part, field, settings, revisionState });
+    if (!r.allowed) out.denied.push({ op, reason: r.reason });
+    else if (r.mode === 'suggestion' && part) suggest(((field && FIELD_OWNER[field]) || part.teamOwner) as Team, op);
+    else out.direct.push(op);
+  }
+  return out;
 }

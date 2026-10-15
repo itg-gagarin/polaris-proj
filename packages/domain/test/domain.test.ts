@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  applyPatch, makePatch, emptyContent, makePart, contentHash, can, DEFAULT_SETTINGS, fmtMm, parseMmInput, type User,
+  applyPatch, makePatch, emptyContent, makePart, contentHash, can, classifyPatch, diffToPatch, DEFAULT_SETTINGS, fmtMm, parseMmInput, type User,
 } from '../src';
 
 const user = (over: Partial<User>): User => ({ id: 'u1', name: 'A', email: 'a@x', teams: ['engineering'], role: 'editor', color: '#000', locale: 'en', external: false, ...over });
@@ -41,7 +41,44 @@ describe('patches', () => {
   });
 });
 
+describe('diffToPatch', () => {
+  it('reproduces any edit as a patch (undo/redo persistence)', () => {
+    const c0 = { ...emptyContent(), parts: [makePart({ id: 'p1', originalName: 'top', dims: { T: 18, W: 400, L: 700 } }), makePart({ id: 'p2', originalName: 'side' })] };
+    const edit = makePatch([
+      { op: 'setDim', partId: 'p1', dim: 'W', value: 410 },
+      { op: 'setExpr', partId: 'p1', dim: 'L', expr: '=case.width - 36' },
+      { op: 'setField', partId: 'p1', field: 'notes', value: 'n' },
+      { op: 'setTransform', partId: 'p1', instance: 1, transform: { position: { x: 1, y: 2, z: 3 }, rotation: { x: 0, y: 0, z: 0 } } },
+      { op: 'removePart', partId: 'p2' },
+      { op: 'addPart', part: makePart({ id: 'p3', originalName: 'back' }) },
+      { op: 'setWaiver', findingKey: 'k', waiver: { findingKey: 'k', kind: 'false-positive', reason: 'r', by: 'u', at: 't' } },
+    ], 'e');
+    const c1 = applyPatch(c0, edit).content;
+    const p = diffToPatch(c0, c1, 'again');
+    expect(contentHash(applyPatch(c0, p).content)).toBe(contentHash(c1));
+    expect(diffToPatch(c1, c1, 'none').ops).toHaveLength(0);
+  });
+});
+
 describe('permissions (PRD §2 matrix)', () => {
+  it('classifyPatch splits a patch into direct, suggestion and denied ops', () => {
+    const own = makePart({ id: 'a', originalName: 'side', teamOwner: 'engineering' });
+    const other = makePart({ id: 'b', originalName: 'slide', teamOwner: 'hardware' });
+    const locked = makePart({ id: 'c', originalName: 'top', teamOwner: 'engineering', locked: true });
+    const content = { ...emptyContent(), parts: [own, other, locked] };
+    const patch = makePatch([
+      { op: 'setDim', partId: 'a', dim: 'L', value: 1 },
+      { op: 'setDim', partId: 'b', dim: 'L', value: 1 },
+      { op: 'setField', partId: 'a', field: 'finishCode', value: 'F' },
+      { op: 'setDim', partId: 'c', dim: 'L', value: 1 },
+    ], 'x');
+    const r = classifyPatch(user({}), content, patch, DEFAULT_SETTINGS, 'draft');
+    expect(r.direct).toHaveLength(1);
+    expect(r.suggestions.map((s) => [s.team, s.ops.length])).toEqual([['hardware', 1], ['finishing', 1]]);
+    expect(r.denied[0].reason).toMatch(/locked/);
+    expect(classifyPatch(user({}), content, patch, DEFAULT_SETTINGS, 'released').denied).toHaveLength(4);
+  });
+
   const part = makePart({ originalName: 'slide', teamOwner: 'hardware' });
   it('viewer cannot edit, reviewer can approve own lane only', () => {
     expect(can(user({ role: 'viewer' }), 'editGeometry').allowed).toBe(false);

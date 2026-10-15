@@ -2,7 +2,7 @@
   "name": "bom-studio",
   "private": true,
   "version": "0.1.0",
-  "description": "Furniture BOM Studio \u2014 BOM-driven parametric editor with markup, review and meetings",
+  "description": "Furniture BOM Studio — BOM-driven parametric editor with markup, review and meetings",
   "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=20"
@@ -18,7 +18,8 @@
     "sync": "pnpm --filter @bom/sync start",
     "worker": "pnpm --filter @bom/worker start",
     "loadtest": "pnpm --filter @bom/sync loadtest",
-    "dictionary:overlay": "pnpm --dir scripts exec tsx build-overlay.ts"
+    "dictionary:overlay": "pnpm --dir scripts exec tsx build-overlay.ts",
+    "e2e": "pnpm --filter @bom/web e2e"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

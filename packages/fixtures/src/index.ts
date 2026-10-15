@@ -13,7 +13,8 @@ import { importDictionary, applyOverlay, DictionaryIndex, type Overlay } from '@
 import { importFile, type ImportedProduct } from '@bom/bom-io';
 import { prepareContent, composeSet } from '@bom/engine';
 
-export const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../../fixtures');
+/** BOM_FIXTURES_DIR overrides the location when this file is bundled (Next.js server build). */
+export const FIXTURES_DIR = process.env.BOM_FIXTURES_DIR || resolve(dirname(fileURLToPath(import.meta.url)), '../../../fixtures');
 export const fixturePath = (...p: string[]) => resolve(FIXTURES_DIR, ...p);
 
 let dictCache: Promise<{ entries: StdPart[]; index: DictionaryIndex }> | null = null;
