@@ -1,0 +1,22 @@
+# Render Blueprint: one Docker web service with a persistent disk for the JSON data file.
+# Field names written from memory of Render's Blueprint spec — verify in the Render dashboard
+# preview before applying (render.com was not reachable from the build environment).
+services:
+  - type: web
+    name: bom-studio
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter # persistent disks need a paid instance type
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: bom-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SITE_PASSWORD
+        sync: false # Render asks for the value when the Blueprint is created
+      - key: DATA_FILE
+        value: /data/db.json
+      - key: AI_PROVIDER
+        value: mock

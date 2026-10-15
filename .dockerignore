@@ -1,0 +1,12 @@
+**/node_modules
+**/.next
+.data
+.git
+run-shots
+**/test-results
+**/playwright-report
+*.tsbuildinfo
+.env
+.env.*
+# Original customer workbooks never leave the developer's machine.
+fixtures/private

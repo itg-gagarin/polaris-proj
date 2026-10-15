@@ -29,6 +29,11 @@ pnpm build && pnpm e2e             # Playwright editor smoke tests
 pnpm loadtest                      # 25 Hocuspocus clients, propagation p50/p95
 ```
 
+## Hosted preview
+
+`Dockerfile` + `render.yaml` run the app in the cloud behind a shared password (`SITE_PASSWORD`) with
+data on a persistent disk. Steps for Render, Railway and other Docker hosts: [`docs/deploy.md`](docs/deploy.md).
+
 ## Running with real services
 
 | Concern | Dev default | Production |
