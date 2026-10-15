@@ -12,3 +12,5 @@ playwright-report/
 .DS_Store
 # never commit original customer workbooks (may be encrypted / contain costing)
 fixtures/private/
+# screenshots from local app walkthroughs
+run-shots/
