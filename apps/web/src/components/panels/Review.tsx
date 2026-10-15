@@ -111,6 +111,19 @@ export function Review() {
         )}
       </div>
 
+      {revision.meetingIds.length > 0 && (
+        <>
+          <div className="section-title">Meetings</div>
+          {revision.meetingIds.map((id) => (
+            <div key={id}>
+              <a href={`/meeting/${id}/record`} target="_blank" rel="noreferrer">
+                Meeting record {id}
+              </a>
+            </div>
+          ))}
+        </>
+      )}
+
       <div className="section-title">{t('common.export')}</div>
       <div className="row" style={{ flexWrap: 'wrap' }}>
         {(['pdf', 'xlsx', 'glb', 'dxf', 'step', 'json'] as const).map((f) => (

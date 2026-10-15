@@ -30,6 +30,8 @@ export function ImportDialog() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pick, setPick] = useState(0);
   const [include, setInclude] = useState<Record<number, boolean>>({});
+  const [aiMap, setAiMap] = useState<Record<string, { stdCode: string; confidence: string; reason: string }[]>>({});
+  const [aiBusy, setAiBusy] = useState(false);
   const cur = preview?.products[pick];
   const unsettled = useMemo(() => (cur ? cur.content.parts.filter((p) => !SETTLED.has(p.match.status)) : []), [cur]);
   if (!open) return null;
@@ -76,6 +78,18 @@ export function ImportDialog() {
       if (!SETTLED.has(p.match.status) && best && best.score >= 0.7) c = applyPatch(c, makePatch([{ op: 'setField', partId: p.id, field: 'stdCode', value: best.stdCode }, { op: 'setField', partId: p.id, field: 'match', value: { ...p.match, status: 'confirmed', confirmedBy: me.id } }], 'confirm all', 'import')).content;
     }
     updateContent(pick, c);
+  };
+  const suggestAi = async () => {
+    if (!cur) return;
+    setAiBusy(true);
+    try {
+      const r = await api<{ mappings: { mappings: { partId: string; candidates: { stdCode: string; confidence: string; reason: string }[] }[] } }>('/api/ai/helper', { method: 'POST', json: { kind: 'importMapping', content: cur.content } });
+      setAiMap((m) => ({ ...m, ...Object.fromEntries(r.mappings.mappings.map((x) => [x.partId, x.candidates])) }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
   };
   const commit = async () => {
     if (!preview || !file) return;
@@ -158,6 +172,9 @@ export function ImportDialog() {
                     <button className="btn small" onClick={confirmGood}>
                       {t('import.confirmAll')}
                     </button>
+                    <button className="btn small ai" onClick={suggestAi} disabled={aiBusy || !unsettled.length}>
+                      ✦ {aiBusy ? '…' : 'Suggest with AI'}
+                    </button>
                   </div>
                   {cur.warnings.length > 0 && <div className="banner">{cur.warnings.join(' · ')}</div>}
                   <div style={{ maxHeight: '52vh', overflow: 'auto' }}>
@@ -188,6 +205,12 @@ export function ImportDialog() {
                                 p.match.candidates.slice(0, 3).map((c) => (
                                   <button key={c.stdCode} className="btn small" style={{ marginRight: 4 }} onClick={() => confirm(p.id, c.stdCode, c.name)} title={`score ${c.score.toFixed(2)}`}>
                                     {c.stdCode} {c.name} ({c.score.toFixed(2)})
+                                  </button>
+                                ))}
+                              {!SETTLED.has(p.match.status) &&
+                                (aiMap[p.id] ?? []).map((c) => (
+                                  <button key={`ai-${c.stdCode}`} className="btn small" style={{ marginRight: 4, borderColor: 'var(--ai)' }} title={c.reason} onClick={() => confirm(p.id, c.stdCode, p.match.candidates.find((x) => x.stdCode === c.stdCode)?.name ?? p.name)}>
+                                    ✦ {c.stdCode} ({c.confidence})
                                   </button>
                                 ))}
                             </td>

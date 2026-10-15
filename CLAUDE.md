@@ -10,7 +10,7 @@ Read `docs/prd/PRD.md` (the product spec) and `docs/architecture.md` before chan
   The AI service may only return JSON patches, and the server validates them with the engine.
 - Golden tests in `fixtures/expected` must pass before any merge. Update them only with a written reason:
   `pnpm golden:update "why"` (appends to `fixtures/expected/CHANGELOG.md`).
-- Part names stay as written (Indonesian). UI strings go through the i18n layer (`apps/web/src/i18n`, en + id).
+- Part names stay as written (Indonesian). UI strings go through the i18n layer (`apps/web/src/lib/i18n.ts`, en + id).
 - Checks report severity, confidence (High = BOM arithmetic, Medium = depends on an assumption, Low = interpretation),
   the numbers, and the assumption keys they depend on. Thresholds come from workspace settings, not code.
 - The carcass layout must never depend on the size of moving parts (drawers, doors): a wrong drawer shows as a clash.

@@ -72,6 +72,12 @@ function styleFor(i: PlacedInstance, part: Part | undefined, view: FrameView, fa
   }
 }
 
+interface DimDef {
+  id: string;
+  a: { key: string; offset: [number, number, number] };
+  b: { key: string; offset: [number, number, number] };
+}
+
 interface Props {
   frame: FrameItem;
   rev: RevisionLive;
@@ -275,6 +281,20 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
       useUi.setState({ measure: !m || m.b || m.revisionId !== revisionId ? { revisionId, a: pt, b: null } : { ...m, b: pt } });
       return;
     }
+    if (tool === 'dimension') {
+      // Persistent dimension, stored on the frame and anchored to instances (it follows resizes and moves).
+      const c = placed.find((x) => x.i.key === key)?.center ?? e.point;
+      const pt = { key, offset: e.point.clone().sub(c).toArray() as [number, number, number] };
+      const start = useUi.getState().dimStart;
+      if (!start || start.frameId !== frame.id) {
+        useUi.setState({ dimStart: { frameId: frame.id, ...pt } });
+        return;
+      }
+      const dims = ((frame.props.dimensions as unknown[]) ?? []).concat([{ id: `dim_${Date.now().toString(36)}`, a: { key: start.key, offset: start.offset }, b: pt }]);
+      live.writeItems((m) => m.set(frame.id, { ...frame, props: { ...frame.props, dimensions: dims } }));
+      useUi.setState({ dimStart: null });
+      return;
+    }
     if (tool === 'section') {
       const n = e.face?.normal.clone().transformDirection(e.object.matrixWorld) ?? new THREE.Vector3(1, 0, 0);
       const axis = Math.abs(n.x) > 0.5 ? 'x' : Math.abs(n.y) > 0.5 ? 'y' : 'z';
@@ -358,6 +378,29 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
         </Html>
       )}
       {measure && <MeasureLine m={measure} analysis={analysis} />}
+      {((frame.props.dimensions as DimDef[] | undefined) ?? []).map((d) => {
+        const ca = placed.find((x) => x.i.key === d.a.key)?.center;
+        const cb = placed.find((x) => x.i.key === d.b.key)?.center;
+        if (!ca || !cb) return null;
+        const a = ca.clone().add(new THREE.Vector3(...d.a.offset));
+        const b = cb.clone().add(new THREE.Vector3(...d.b.offset));
+        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: '#0f766e' }));
+        return (
+          <group key={d.id}>
+            <primitive object={line} raycast={() => null} />
+            <Html position={a.clone().add(b).multiplyScalar(0.5)} center>
+              <div className="chip" style={{ background: 'var(--panel)', borderColor: '#0f766e' }}>
+                {a.distanceTo(b).toFixed(1)} mm
+                {!readOnly && (
+                  <button className="btn small ghost" style={{ padding: 0 }} aria-label="Remove dimension" onClick={() => live.writeItems((m) => m.set(frame.id, { ...frame, props: { ...frame.props, dimensions: ((frame.props.dimensions as DimDef[]) ?? []).filter((x) => x.id !== d.id) } }))}>
+                    ✕
+                  </button>
+                )}
+              </div>
+            </Html>
+          </group>
+        );
+      })}
       {target && (
         <TransformControls
           mode={gizmoTool === 'move' ? 'translate' : gizmoTool === 'rotate' ? 'rotate' : 'scale'}

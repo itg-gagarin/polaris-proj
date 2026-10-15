@@ -80,6 +80,8 @@ interface UiState {
   meetingId: string | null;
   following: string | null;
   measure: Measurement | null;
+  /** Dimension tool: first picked point, waiting for the second. */
+  dimStart: { frameId: string; key: string; offset: [number, number, number] } | null;
   /** Timeline scrub: show an older revision read-only in the active frames. */
   historyRevisionId: string | null;
   saving: number;
@@ -126,6 +128,7 @@ export const useUi = create<UiState>((set, get) => ({
   meetingId: null,
   following: null,
   measure: null,
+  dimStart: null,
   historyRevisionId: null,
   saving: 0,
   online: true,
