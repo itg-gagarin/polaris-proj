@@ -1,0 +1,23 @@
+{
+  "name": "@bom/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./seed": "./src/seed.ts"
+  },
+  "dependencies": {
+    "@bom/domain": "workspace:*",
+    "pg": "^8.16.3",
+    "@bom/fixtures": "workspace:*",
+    "@bom/workflow": "workspace:*",
+    "@bom/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.5",
+    "@electric-sql/pglite": "^0.3.11"
+  }
+}

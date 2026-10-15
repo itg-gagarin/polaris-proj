@@ -1,0 +1,14 @@
+# Supabase CLI project config (local development). Not used until DATA_BACKEND=supabase.
+project_id = "bom-studio"
+
+[api]
+schemas = ["public", "app"]
+
+[auth]
+site_url = "http://localhost:3000"
+
+[auth.external.google]
+enabled = false
+
+[auth.external.azure]
+enabled = false
