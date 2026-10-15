@@ -1,0 +1,25 @@
+{
+  "name": "@bom/sync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "loadtest": "tsx src/loadtest-main.ts"
+  },
+  "dependencies": {
+    "@bom/collab": "workspace:*",
+    "@bom/db": "workspace:*",
+    "@bom/domain": "workspace:*",
+    "@bom/engine": "workspace:*",
+    "@bom/workflow": "workspace:*",
+    "@hocuspocus/server": "4.7.0",
+    "@hocuspocus/provider": "4.7.0",
+    "ws": "^8.18.0",
+    "yjs": "^13.6.27"
+  },
+  "devDependencies": { "@bom/fixtures": "workspace:*", "@types/ws": "^8.18.0" }
+}

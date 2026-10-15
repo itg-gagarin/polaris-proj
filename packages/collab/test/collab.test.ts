@@ -5,7 +5,7 @@ import { applyPatch, makePatch, contentHash } from '@bom/domain';
 import { loadHollan } from '@bom/fixtures';
 import {
   initRevision, readRevision, applyPatchToDoc, watchLostWrites, acquireLock, canEdit, touchLocks, releaseLocks, createUserUndo,
-  ChannelProvider, MemoryHub, setPresence, peers, followedView, bringEveryoneHere, onSummon, boardItems, type LostWrite,
+  ChannelProvider, MemoryHub, syncDocTo, setPresence, peers, followedView, bringEveryoneHere, onSummon, boardItems, type LostWrite,
 } from '../src';
 
 let content: RevisionContent;
@@ -69,6 +69,28 @@ describe('shared revision document', () => {
     const lb = readRevision(b, 'r1')!.parts.find((p) => p.id === front.id)!.dims.L;
     expect(la).toBe(lb);
     if (la === 452) expect(lost).toEqual([{ partId: front.id, field: 'dims.L', yours: 455, theirs: 452 }]);
+  });
+});
+
+describe('out-of-band reconciliation', () => {
+  it('syncDocTo reaches the target content with field-level writes and merges with a concurrent offline edit', () => {
+    const server = new Y.Doc();
+    initRevision(server, 'r1', content);
+    const offline = new Y.Doc();
+    Y.applyUpdate(offline, Y.encodeStateAsUpdate(server));
+    const front = content.parts.find((p) => p.role === 'drawerFront')!;
+    const other = content.parts.find((p) => p.id !== front.id && p.role !== 'drawerFront')!;
+    // The row changed via REST (front height), while an offline client edited a different part.
+    const target = applyPatch(content, makePatch([{ op: 'setDim', partId: front.id, dim: 'L', value: 401 }, { op: 'removePart', partId: content.parts.at(-1)!.id }], 'rest')).content;
+    const writes = syncDocTo(server, 'r1', target);
+    expect(writes).toBeLessThan(5);
+    expect(contentHash(readRevision(server, 'r1')!)).toBe(contentHash(target));
+    expect(syncDocTo(server, 'r1', target)).toBe(0);
+    applyPatchToDoc(offline, 'r1', makePatch([{ op: 'setField', partId: other.id, field: 'notes', value: 'offline note' }], 'x'), 'u2');
+    Y.applyUpdate(server, Y.encodeStateAsUpdate(offline));
+    const merged = readRevision(server, 'r1')!;
+    expect(merged.parts.find((p) => p.id === front.id)!.dims.L).toBe(401);
+    expect(merged.parts.find((p) => p.id === other.id)!.notes).toBe('offline note');
   });
 });
 

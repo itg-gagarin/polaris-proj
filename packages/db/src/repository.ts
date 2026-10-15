@@ -1,5 +1,5 @@
 import type {
-  AppNotification, AuditEvent, Board, Decision, Meeting, MeetingNote, Product, Recording, Review, Revision, StdPart, Thread, User, Workspace,
+  Finding, AppNotification, AuditEvent, Board, Decision, Meeting, MeetingNote, Product, Recording, Review, Revision, StdPart, Thread, User, Workspace,
 } from '@bom/domain';
 
 export interface AiRunLog {
@@ -15,6 +15,15 @@ export interface AiRunLog {
   status: 'ok' | 'error' | 'timeout' | 'disabled';
   ms: number;
   at: string;
+}
+
+/** Server-side engine run for one content hash (the sync server writes one per snapshot). */
+export interface CheckResult {
+  revisionId: string;
+  contentHash: string;
+  findings: Finding[];
+  summary: { fail: number; warn: number; info: number; waived: number; parts: number; instances: number; unplaced: number };
+  computedAt: string;
 }
 
 export interface StoredFile {
@@ -80,6 +89,14 @@ export interface Repository {
 
   appendAiRun(r: AiRunLog): Promise<void>;
   listAiRuns(revisionId: string): Promise<AiRunLog[]>;
+
+  putCheckResult(r: CheckResult): Promise<void>;
+  /** Latest result for the revision, or the one for a specific content hash. */
+  getCheckResult(revisionId: string, contentHash?: string): Promise<CheckResult | null>;
+
+  /** Hocuspocus persistence: the encoded Yjs state of one board document (PRD §11). */
+  getBoardDoc(name: string): Promise<Uint8Array | null>;
+  saveBoardDoc(name: string, workspaceId: string, state: Uint8Array): Promise<void>;
 
   putFile(name: string, bytes: Uint8Array, mime: string): Promise<StoredFile>;
   getFile(uri: string): Promise<{ file: StoredFile; bytes: Uint8Array } | null>;

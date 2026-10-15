@@ -5,7 +5,7 @@
  */
 import * as Y from 'yjs';
 import type { BoardItem, Part, Patch, PatchOp, RevisionContent } from '@bom/domain';
-import { applyPatch, clone } from '@bom/domain';
+import { applyPatch, canonicalJson, clone } from '@bom/domain';
 
 export const PART_FIELD_KEYS = ['dims.T', 'dims.W', 'dims.L'] as const;
 
@@ -48,12 +48,18 @@ export function revisionMaps(doc: Y.Doc, revisionId: string): RevisionMaps {
   };
 }
 
+function partRecord(p: Part): Record<string, unknown> {
+  const o: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(p)) {
+    if (k === 'dims') for (const d of ['T', 'W', 'L'] as const) o[`dims.${d}`] = p.dims[d];
+    else o[k] = clone(v);
+  }
+  return o;
+}
+
 function partToY(p: Part): Y.Map<unknown> {
   const m = new Y.Map<unknown>();
-  for (const [k, v] of Object.entries(p)) {
-    if (k === 'dims') for (const d of ['T', 'W', 'L'] as const) m.set(`dims.${d}`, p.dims[d]);
-    else m.set(k, clone(v));
-  }
+  for (const [k, v] of Object.entries(partRecord(p))) m.set(k, v);
   return m;
 }
 
@@ -204,4 +210,69 @@ function writeOp(r: RevisionMaps, op: PatchOp): void {
       else r.waivers.delete(op.findingKey);
       break;
   }
+}
+
+/**
+ * Bring the live document to `content` with field-level writes only where values differ. Used when
+ * the revision row changed while nobody had the document open (REST edit, AI accept, restore), so
+ * offline replicas still merge field by field instead of one side replacing whole maps.
+ */
+export function syncDocTo(doc: Y.Doc, revisionId: string, content: RevisionContent, origin: unknown = 'server'): number {
+  let writes = 0;
+  const same = (a: unknown, b: unknown) => canonicalJson(a ?? null) === canonicalJson(b ?? null);
+  doc.transact(() => {
+    const r = revisionMaps(doc, revisionId);
+    if (!r.meta.get('initialised')) {
+      initRevision(doc, revisionId, content, origin);
+      writes++;
+      return;
+    }
+    const setIf = (m: Y.Map<unknown>, k: string, v: unknown) => {
+      if (!same(m.get(k), v)) {
+        m.set(k, clone(v));
+        writes++;
+      }
+    };
+    setIf(r.meta, 'header', content.header);
+    setIf(r.meta, 'family', content.family);
+    const want = new Set(content.parts.map((p) => p.id));
+    for (const id of [...r.parts.keys()]) if (!want.has(id)) {
+      r.parts.delete(id);
+      writes++;
+    }
+    for (const p of content.parts) {
+      const m = r.parts.get(p.id);
+      if (!m) {
+        r.parts.set(p.id, partToY(p));
+        writes++;
+        continue;
+      }
+      const target = partRecord(p);
+      for (const [k, v] of Object.entries(target)) setIf(m, k, v);
+      for (const k of [...m.keys()]) if (!(k in target)) {
+        m.delete(k);
+        writes++;
+      }
+    }
+    const order = content.parts.map((p) => p.id);
+    if (!same(r.order.toArray(), order)) {
+      r.order.delete(0, r.order.length);
+      r.order.push(order);
+      writes++;
+    }
+    const syncMap = (m: Y.Map<unknown>, entries: [string, unknown][]) => {
+      const keys = new Set(entries.map(([k]) => k));
+      for (const k of [...m.keys()]) if (!keys.has(k)) {
+        m.delete(k);
+        writes++;
+      }
+      for (const [k, v] of entries) setIf(m, k, v);
+    };
+    syncMap(r.assemblies, content.assemblies.map((a) => [a.id, a]));
+    syncMap(r.joints, content.joints.map((j) => [j.id, j]));
+    syncMap(r.parameters, Object.entries(content.parameters));
+    syncMap(r.assumptions, Object.entries(content.assumptions));
+    syncMap(r.waivers, Object.entries(content.waivers));
+  }, origin);
+  return writes;
 }

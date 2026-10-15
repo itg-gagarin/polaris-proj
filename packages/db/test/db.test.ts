@@ -61,6 +61,13 @@ describe('in-memory and file repositories', () => {
     await expect(repo.upsertRevision({ ...r, state: 'released', content: { ...r.content, parts: [] } })).rejects.toThrow(/immutable/);
   });
 
+  it('board documents round-trip (Hocuspocus persistence)', async () => {
+    const repo = new MemoryRepository();
+    expect(await repo.getBoardDoc('board:x')).toBeNull();
+    await repo.saveBoardDoc('board:x', DEMO_WORKSPACE_ID, new Uint8Array([1, 2, 3]));
+    expect(Array.from((await repo.getBoardDoc('board:x'))!)).toEqual([1, 2, 3]);
+  });
+
   it('file repository survives a restart', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bomdb-'));
     const a = new FileRepository(join(dir, 'db.json'), 0);
@@ -127,6 +134,12 @@ describe('PostgreSQL schema + row-level security (supabase/migrations on PGlite)
     ]);
     expect((await repo.as(uid.u_dewi).listNotes('mtg_ns_r5')).map((n) => n.id)).toEqual(['n_priv', 'n_pub']);
     expect((await repo.as(uid.u_agus).listNotes('mtg_ns_r5')).map((n) => n.id)).toEqual(['n_pub']);
+  });
+
+  it('board documents are stored as bytea and scoped to workspace members', async () => {
+    await repo.saveBoardDoc('board:pg', DEMO_WORKSPACE_ID, new Uint8Array([9, 8, 7]));
+    await repo.saveBoardDoc('board:pg', DEMO_WORKSPACE_ID, new Uint8Array([9, 8, 7, 6]));
+    expect(Array.from((await repo.as(uid.u_budi).getBoardDoc('board:pg'))!)).toEqual([9, 8, 7, 6]);
   });
 
   it('released revisions are read-only and the audit log is append-only (database triggers)', async () => {

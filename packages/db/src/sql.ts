@@ -7,7 +7,7 @@ import type {
   AppNotification, AuditEvent, Board, Comment, Decision, Meeting, MeetingNote, Product, Recording, Review, Revision, StdPart, Thread, User, Workspace,
 } from '@bom/domain';
 import { contentHash, newId } from '@bom/domain';
-import type { AiRunLog, Repository, StoredFile } from './repository';
+import type { AiRunLog, CheckResult, Repository, StoredFile } from './repository';
 
 export interface SqlExecutor {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
@@ -227,6 +227,42 @@ export class SqlRepository implements Repository {
 
   appendAiRun(r: AiRunLog) { return this.upsert(T.aiRuns, [r as unknown as Record<string, unknown>]); }
   listAiRuns(revisionId: string) { return this.select<AiRunLog>(T.aiRuns, 'revision_id = $1', [revisionId], 'order by at'); }
+
+  async putCheckResult(r: CheckResult) {
+    await this.run((q) =>
+      q.query(
+        'insert into app.check_results (revision_id, content_hash, findings, summary, computed_at) values ($1, $2, $3, $4, $5) on conflict (revision_id, content_hash) do update set findings = excluded.findings, summary = excluded.summary, computed_at = excluded.computed_at',
+        [r.revisionId, r.contentHash, JSON.stringify(r.findings), JSON.stringify(r.summary), r.computedAt],
+      ),
+    );
+  }
+  async getCheckResult(revisionId: string, contentHash?: string) {
+    const r = await this.run((q) =>
+      q.query<Record<string, unknown>>(
+        `select revision_id, content_hash, findings, summary, computed_at from app.check_results where revision_id = $1 ${contentHash ? 'and content_hash = $2' : ''} order by computed_at desc limit 1`,
+        contentHash ? [revisionId, contentHash] : [revisionId],
+      ),
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    const j = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v);
+    const at = row.computed_at;
+    return { revisionId: String(row.revision_id), contentHash: String(row.content_hash), findings: j(row.findings), summary: j(row.summary), computedAt: at instanceof Date ? at.toISOString() : String(at) } as CheckResult;
+  }
+
+  async getBoardDoc(name: string) {
+    const r = await this.run((q) => q.query('select state from app.board_docs where name = $1', [name]));
+    const v = r.rows[0]?.state as Uint8Array | undefined;
+    return v ? new Uint8Array(v) : null;
+  }
+  async saveBoardDoc(name: string, workspaceId: string, state: Uint8Array) {
+    await this.run((q) =>
+      q.query(
+        'insert into app.board_docs (name, workspace_id, state, updated_at) values ($1, $2, $3, now()) on conflict (name) do update set state = excluded.state, updated_at = now()',
+        [name, workspaceId, state],
+      ),
+    );
+  }
 
   /** File bytes belong in Supabase Storage; this adapter stores the index row (bytes inline only for small files in dev). */
   async putFile(name: string, bytes: Uint8Array, mime: string): Promise<StoredFile> {

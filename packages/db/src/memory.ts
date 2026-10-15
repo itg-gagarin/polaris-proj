@@ -2,7 +2,7 @@ import type {
   AppNotification, AuditEvent, Board, Decision, Meeting, MeetingNote, Product, Recording, Review, Revision, StdPart, Thread, User, Workspace,
 } from '@bom/domain';
 import { clone, newId } from '@bom/domain';
-import type { AiRunLog, Repository, StoredFile } from './repository';
+import type { AiRunLog, CheckResult, Repository, StoredFile } from './repository';
 
 export interface MemoryState {
   version: 1;
@@ -22,6 +22,9 @@ export interface MemoryState {
   audit: AuditEvent[];
   aiRuns: AiRunLog[];
   files: Record<string, StoredFile & { b64: string }>;
+  /** Optional so snapshots written before board persistence still load. */
+  checkResults?: CheckResult[];
+  boardDocs?: Record<string, { workspaceId: string; b64: string; at: string }>;
 }
 
 export const emptyState = (): MemoryState => ({
@@ -42,6 +45,8 @@ export const emptyState = (): MemoryState => ({
   audit: [],
   aiRuns: [],
   files: {},
+  checkResults: [],
+  boardDocs: {},
 });
 
 const vals = <T>(o: Record<string, T>) => Object.values(o);
@@ -131,6 +136,28 @@ export class MemoryRepository implements Repository {
 
   async appendAiRun(r: AiRunLog) { this.s.aiRuns.push(clone(r)); this.changed(); }
   async listAiRuns(revisionId: string) { return clone(this.s.aiRuns.filter((r) => r.revisionId === revisionId)); }
+
+  async putCheckResult(r: CheckResult) {
+    const list = (this.s.checkResults ??= []).filter((x) => !(x.revisionId === r.revisionId && x.contentHash === r.contentHash));
+    // Keep the last few per revision; findings are cheap to recompute.
+    const mine = list.filter((x) => x.revisionId === r.revisionId);
+    const drop = new Set(mine.slice(0, Math.max(0, mine.length - 9)));
+    this.s.checkResults = [...list.filter((x) => !drop.has(x)), clone(r)];
+    this.changed();
+  }
+  async getCheckResult(revisionId: string, contentHash?: string) {
+    const mine = (this.s.checkResults ?? []).filter((x) => x.revisionId === revisionId && (!contentHash || x.contentHash === contentHash));
+    return clone(mine.sort((a, b) => a.computedAt.localeCompare(b.computedAt)).at(-1) ?? null);
+  }
+
+  async getBoardDoc(name: string) {
+    const d = this.s.boardDocs?.[name];
+    return d ? fromB64(d.b64) : null;
+  }
+  async saveBoardDoc(name: string, workspaceId: string, state: Uint8Array) {
+    (this.s.boardDocs ??= {})[name] = { workspaceId, b64: toB64(state), at: new Date().toISOString() };
+    this.changed();
+  }
 
   async putFile(name: string, bytes: Uint8Array, mime: string): Promise<StoredFile> {
     const uri = `mem://${newId('file')}/${encodeURIComponent(name)}`;
