@@ -72,6 +72,22 @@ describe('shared revision document', () => {
   });
 });
 
+describe('lost-write toast', () => {
+  it('does not fire for local non-user writes such as accepting your own AI suggestion', () => {
+    const doc = new Y.Doc();
+    initRevision(doc, 'r1', content);
+    const me = { kind: 'user' };
+    const lost: LostWrite[] = [];
+    const off = watchLostWrites(doc, 'r1', me, (l) => lost.push(l));
+    const front = content.parts.find((p) => p.role === 'drawerFront')!;
+    applyPatchToDoc(doc, 'r1', makePatch([{ op: 'setDim', partId: front.id, dim: 'L', value: 160 }], 'mine'), me);
+    const after = applyPatch(readRevision(doc, 'r1')!, makePatch([{ op: 'setDim', partId: front.id, dim: 'L', value: 226.5 }], 'ai')).content;
+    syncDocTo(doc, 'r1', after, 'server');
+    expect(lost).toHaveLength(0);
+    off();
+  });
+});
+
 describe('out-of-band reconciliation', () => {
   it('syncDocTo reaches the target content with field-level writes and merges with a concurrent offline edit', () => {
     const server = new Y.Doc();

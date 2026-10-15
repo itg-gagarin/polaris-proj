@@ -17,10 +17,13 @@ function activeRevision(live: LiveWorkspace): RevisionLive | null {
   return id ? live.revision(id) : null;
 }
 
+/** The frame view commands act on: the active frame if it shows a model (3D or sheet), else the active revision's 3D frame. */
 function activeFrame(live: LiveWorkspace): FrameItem | null {
   const s = useUi.getState();
   const f = live.items.find((i) => i.id === s.activeFrameId && i.kind === 'frame') as FrameItem | undefined;
-  return f ?? (live.items.find((i) => i.kind === 'frame' && i.type === 'viewport' && i.revisionId === s.activeRevisionId) as FrameItem | undefined) ?? null;
+  if (f && (f.type === 'viewport' || f.type === 'sheet')) return f;
+  const revId = f?.revisionId ?? s.activeRevisionId;
+  return (live.items.find((i) => i.kind === 'frame' && i.type === 'viewport' && i.revisionId === revId) as FrameItem | undefined) ?? f ?? null;
 }
 
 function selectedParts(rev: RevisionLive | null): Part[] {

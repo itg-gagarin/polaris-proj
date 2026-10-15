@@ -44,6 +44,21 @@ test('select a BOM row, edit a size with the command line, undo it', async ({ pa
   await expect(page.getByTestId('properties').locator('input[aria-label="L size"]')).not.toHaveValue('401.5');
 });
 
+test('view commands reach the 3D frame after working in the BOM table', async ({ page }) => {
+  await login(page, 'u_margono');
+  await page.locator('[data-testid="bom-table"] tr[data-part]').first().click();
+  const cmd = page.getByTestId('command-line');
+  await cmd.fill('LENS PAINTING');
+  await cmd.press('Enter');
+  await cmd.fill('SECTION X 300');
+  await cmd.press('Enter');
+  const vp = page.locator('[data-frame="fr_ns_3d"]');
+  await expect(vp).toHaveAttribute('data-lens', 'painting');
+  await expect(vp).toHaveAttribute('data-section', 'x:300');
+  await page.waitForTimeout(800);
+  await shot(page, '02b-lens-section');
+});
+
 test('AI optimize: suggestion with per-change review, compare frame, accept', async ({ page }) => {
   await login(page, 'u_margono');
   await page.locator('[data-type="viewport"]').first().click({ position: { x: 200, y: 10 } });

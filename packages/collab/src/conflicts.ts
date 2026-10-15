@@ -25,7 +25,9 @@ export function watchLostWrites(doc: Y.Doc, revisionId: string, localOrigin: unk
         const value = (ev.target as Y.Map<unknown>).get(key);
         if (tr.origin === localOrigin) {
           mine.set(k, { value, at: Date.now() });
-        } else {
+        } else if (!tr.local) {
+          // Only updates that arrived from another replica can overwrite you; local non-user writes
+          // (accepting your own AI suggestion, a server reconcile) are not someone else's edit.
           const m = mine.get(k);
           if (m && Date.now() - m.at < windowMs && JSON.stringify(m.value) !== JSON.stringify(value)) {
             onLost({ partId, field: key, yours: m.value, theirs: value });

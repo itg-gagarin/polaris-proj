@@ -80,7 +80,10 @@ export function FrameHost({ item, screen, onStartDrag, onStartResize, onRemove }
       style={{ left: screen.x, top: screen.y, width: screen.w, height: screen.h }}
       data-frame={item.id}
       data-type={item.type}
-      onPointerDown={() => useUi.setState({ activeFrameId: item.id, activeRevisionId: shownId ?? null })}
+      data-lens={view.lens}
+      data-section={view.section ? `${view.section.axis}:${view.section.at}` : ''}
+      // Capture phase: the title bar's drag handler stops propagation, but a click there still activates the frame.
+      onPointerDownCapture={() => useUi.setState({ activeFrameId: item.id, activeRevisionId: shownId ?? null })}
     >
       <div className="frame-title" onPointerDown={onStartDrag} onDoubleClick={() => set({ frameNonce: view.frameNonce + 1 })}>
         <span className="title ellipsis">{item.title}</span>
