@@ -1,0 +1,15 @@
+{
+  "description": "Bed sets composed from component products, so slat, rail and mattress checks run on the whole bed.",
+  "sets": [
+    {
+      "code": "HH-CC-QUEEN-PANEL-BED",
+      "name": "Queen Panel Bed",
+      "components": { "hb": "HH-CC-QUEEN-PANEL-BED-HB", "fb": "HH-CC-QUEEN-PANEL-BED-FB-A-5-SLATS", "rails": "HH-CC-QUEEN-KING-PANEL-SIDE-RAIL" }
+    },
+    {
+      "code": "HH-CC-KING-PANEL-BED",
+      "name": "King Panel Bed",
+      "components": { "hb": "HH-CC-KING-PANEL-BED-HB", "fb": "HH-CC-KNG-PANEL-BED-FB-A-5-SLATS", "rails": "HH-CC-QUEEN-KING-PANEL-SIDE-RAIL" }
+    }
+  ]
+}

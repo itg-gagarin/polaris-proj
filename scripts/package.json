@@ -1,0 +1,13 @@
+{
+  "name": "@bom/scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bom/domain": "workspace:*",
+    "@bom/sheets": "workspace:*",
+    "@bom/dictionary": "workspace:*",
+    "@bom/bom-io": "workspace:*",
+    "@bom/engine": "workspace:*",
+    "@bom/fixtures": "workspace:*"
+  }
+}

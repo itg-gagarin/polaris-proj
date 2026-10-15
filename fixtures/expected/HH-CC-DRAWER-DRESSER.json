@@ -1,0 +1,281 @@
+{
+  "summary": {
+    "fail": 18,
+    "warn": 2,
+    "info": 1,
+    "waived": 0,
+    "parts": 94,
+    "instances": 341,
+    "unplaced": 0
+  },
+  "layoutNotes": [
+    "Drawer rows inferred: 4 + 2 + 2 (top → bottom)"
+  ],
+  "findings": [
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 8.8,
+        "places": 10
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI ATAS\" hits \"frame depan tegak tgh atas\" by up to 8.8 mm in 10 place(s) (panel muka laci atas, tempelan muka laci, peluncur side mounted full ext Soft Closing (SH - ABC))."
+    },
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 8.8,
+        "places": 16
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI ATAS\" hits \"frame depan tegak tgh samp atas\" by up to 8.8 mm in 16 place(s) (panel muka laci atas, tempelan muka laci, peluncur side mounted full ext Soft Closing (SH - ABC))."
+    },
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 9,
+        "places": 4
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI ATAS\" hits \"frame peluncur laci\" by up to 9 mm in 4 place(s) (peluncur side mounted full ext Soft Closing (SH - ABC))."
+    },
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 8.8,
+        "places": 10
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI ATAS\" hits \"frame profil tegak dalam\" by up to 8.8 mm in 10 place(s) (panel muka laci atas, peluncur side mounted full ext Soft Closing (SH - ABC), tempelan muka laci)."
+    },
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 1,
+        "places": 4
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI BAWAH\" hits \"frame depan datar bawah\" by up to 1 mm in 4 place(s) (frame support tengah laci)."
+    },
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 1,
+        "places": 12
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI BAWAH\" hits \"frame depan tegak tgh atas\" by up to 1 mm in 12 place(s) (tempelan muka laci, panel muka laci bawah)."
+    },
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 9,
+        "places": 4
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI BAWAH\" hits \"frame profil datar atas - bwh\" by up to 9 mm in 4 place(s) (panel muka laci bawah, tempelan muka laci)."
+    },
+    {
+      "rule": "clash",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "overlap": 1,
+        "places": 12
+      },
+      "hasFix": false,
+      "message": "\"RAKITAN LACI BAWAH\" hits \"frame profil tegak dalam\" by up to 1 mm in 12 place(s) (tempelan muka laci, panel muka laci bawah)."
+    },
+    {
+      "rule": "drawer-box-vs-slide",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "hardware",
+      "numbers": {
+        "box": 328,
+        "opening": 335.5,
+        "clearance": 12.7,
+        "expected": 310.1,
+        "perSide": 8.9
+      },
+      "hasFix": true,
+      "message": "\"RAKITAN LACI ATAS\": box outside width 328 mm, but opening 335.5 − 2 × 12.7 slide clearance = 310.1 mm (too wide by 8.9 mm per side, tolerance ±0.5)."
+    },
+    {
+      "rule": "drawer-box-vs-slide",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "hardware",
+      "numbers": {
+        "box": 693,
+        "opening": 716,
+        "clearance": 12.7,
+        "expected": 690.6,
+        "perSide": 1.2
+      },
+      "hasFix": true,
+      "message": "\"RAKITAN LACI BAWAH\": box outside width 693 mm, but opening 716 − 2 × 12.7 slide clearance = 690.6 mm (too wide by 1.2 mm per side, tolerance ±0.5)."
+    },
+    {
+      "rule": "finish-coverage",
+      "severity": "fail",
+      "confidence": "high",
+      "team": "finishing",
+      "numbers": {
+        "parts": 1
+      },
+      "hasFix": false,
+      "message": "1 visible part(s) in \"Panel Top\" have no finish code: profil top samp."
+    },
+    {
+      "rule": "front-stack-height",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "design",
+      "numbers": {
+        "stack": 735,
+        "opening": 724,
+        "over": 11,
+        "rows": 3
+      },
+      "hasFix": true,
+      "message": "Fronts + rails + reveals need 735 mm but the opening (front profiles) is 724 mm: 11 mm over across 3 rows."
+    },
+    {
+      "rule": "front-width",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "design",
+      "numbers": {
+        "front": 353,
+        "opening": 335.5,
+        "reveal": 2,
+        "expected": 331.5
+      },
+      "hasFix": true,
+      "message": "\"RAKITAN LACI ATAS\": front 353 mm in 335.5 mm openings — inset with 2 mm reveal needs 331.5 mm (too wide by 21.5)."
+    },
+    {
+      "rule": "front-width",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "design",
+      "numbers": {
+        "front": 718,
+        "opening": 716,
+        "reveal": 2,
+        "expected": 712
+      },
+      "hasFix": true,
+      "message": "\"RAKITAN LACI BAWAH\": front 718 mm in 716 mm openings — inset with 2 mm reveal needs 712 mm (too wide by 6)."
+    },
+    {
+      "rule": "fronts-align",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "design",
+      "numbers": {
+        "offBy": 7.8,
+        "left": 7.8,
+        "right": 7.8
+      },
+      "hasFix": false,
+      "message": "Outer edges of the drawer rows are off by up to 7.8 mm (left 7.8, right 7.8)."
+    },
+    {
+      "rule": "hardware-completeness",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "hardware",
+      "numbers": {
+        "drawers": 8,
+        "pairs": 6
+      },
+      "hasFix": true,
+      "message": "8 drawers need 8 slide pairs; the BOM has 6."
+    },
+    {
+      "rule": "hardware-completeness",
+      "severity": "warn",
+      "confidence": "high",
+      "team": "hardware",
+      "numbers": {
+        "lines": 9
+      },
+      "hasFix": false,
+      "message": "9 hardware line(s) without a SKU: peluncur side mounted full ext Soft Closing (SH - ABC), t nut, mur nanas, adj glide, sekrup, counter weight (tekel), hanger bolt, name plate…."
+    },
+    {
+      "rule": "packing",
+      "severity": "info",
+      "confidence": "high",
+      "team": "packing",
+      "numbers": {
+        "cbm": 1.091,
+        "gw": 115.64463505000002,
+        "nw": 104.30516305000002,
+        "load40hc": 48
+      },
+      "hasFix": false,
+      "message": "Packed 1822×552×1085 mm = 1.091 m³, GW 115.6 kg (NW 104.3), 48 per 40'HC."
+    },
+    {
+      "rule": "runner-length",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "hardware",
+      "numbers": {
+        "runner": 391,
+        "space": 388
+      },
+      "hasFix": true,
+      "message": "Runner \"frame peluncur laci\" is 391 mm in 388 mm between the front frame and the back."
+    },
+    {
+      "rule": "runner-length",
+      "severity": "fail",
+      "confidence": "medium",
+      "team": "hardware",
+      "numbers": {
+        "runner": 391,
+        "space": 388
+      },
+      "hasFix": true,
+      "message": "Runner \"frame peluncur tengah\" is 391 mm in 388 mm between the front frame and the back."
+    },
+    {
+      "rule": "tip-over",
+      "severity": "warn",
+      "confidence": "low",
+      "team": "qc",
+      "numbers": {
+        "height": 965,
+        "threshold": 686
+      },
+      "hasFix": false,
+      "message": "Clothing storage 965 mm tall (≥ 686 mm / 27 in). Target market is not set; if sold in the US it needs an anti-tip kit and a test (kit is on the BOM). Needs verification per market."
+    }
+  ]
+}

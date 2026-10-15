@@ -1,0 +1,53 @@
+{
+  "summary": {
+    "fail": 0,
+    "warn": 2,
+    "info": 1,
+    "waived": 0,
+    "parts": 84,
+    "instances": 112,
+    "unplaced": 0
+  },
+  "layoutNotes": [],
+  "findings": [
+    {
+      "rule": "bed-slats",
+      "severity": "warn",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "gap": 288.7,
+        "max": 76,
+        "slats": 5,
+        "needed": 14
+      },
+      "hasFix": false,
+      "message": "5 slats over 2082 mm leave 288.7 mm gaps (max 76 mm for slats-only support — verify with the mattress maker). Needs a foundation / bunkie board, or about 14 slats."
+    },
+    {
+      "rule": "hardware-completeness",
+      "severity": "warn",
+      "confidence": "high",
+      "team": "hardware",
+      "numbers": {
+        "lines": 20
+      },
+      "hasFix": false,
+      "message": "20 hardware line(s) without a SKU: mur payung, insert nut + pen, mur nanas, adj glide, sekrup, baut JCBC, kunci L, insert nut + pen…."
+    },
+    {
+      "rule": "packing",
+      "severity": "info",
+      "confidence": "high",
+      "team": "packing",
+      "numbers": {
+        "cbm": 0.682,
+        "gw": 79.18550184000001,
+        "nw": 69.82428584,
+        "load40hc": 96
+      },
+      "hasFix": false,
+      "message": "Packed 2224×1202×255 mm = 0.682 m³, GW 79.2 kg (NW 69.8), 96 per 40'HC."
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "summary": {
+    "fail": 0,
+    "warn": 2,
+    "info": 1,
+    "waived": 0,
+    "parts": 16,
+    "instances": 12,
+    "unplaced": 0
+  },
+  "layoutNotes": [],
+  "findings": [
+    {
+      "rule": "hardware-completeness",
+      "severity": "warn",
+      "confidence": "high",
+      "team": "hardware",
+      "numbers": {
+        "lines": 5
+      },
+      "hasFix": false,
+      "message": "5 hardware line(s) without a SKU: sekrup, batang ulir, hex nut, half moon, kunci pas."
+    },
+    {
+      "rule": "overall-dimensions",
+      "severity": "warn",
+      "confidence": "low",
+      "team": "design",
+      "numbers": {
+        "worst": 7
+      },
+      "hasFix": false,
+      "message": "One rail measures 64 × 254 × 2082 mm (with the slat ledger as assumed); the product size says 57 × 254 × 2082 mm."
+    },
+    {
+      "rule": "packing",
+      "severity": "info",
+      "confidence": "high",
+      "team": "packing",
+      "numbers": {
+        "cbm": 0.148,
+        "gw": 23.54734016,
+        "nw": 20.74465216,
+        "load40hc": 460
+      },
+      "hasFix": false,
+      "message": "Packed 2177×349×195 mm = 0.148 m³, GW 23.5 kg (NW 20.7), 460 per 40'HC."
+    }
+  ]
+}

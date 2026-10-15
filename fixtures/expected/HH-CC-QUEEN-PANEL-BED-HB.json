@@ -1,0 +1,52 @@
+{
+  "summary": {
+    "fail": 0,
+    "warn": 2,
+    "info": 1,
+    "waived": 0,
+    "parts": 35,
+    "instances": 43,
+    "unplaced": 0
+  },
+  "layoutNotes": [],
+  "findings": [
+    {
+      "rule": "hardware-completeness",
+      "severity": "warn",
+      "confidence": "high",
+      "team": "hardware",
+      "numbers": {
+        "lines": 7
+      },
+      "hasFix": false,
+      "message": "7 hardware line(s) without a SKU: mur payung, insert nut + pen, mur nanas, adj glide, sekrup, baut JCBC, kunci L."
+    },
+    {
+      "rule": "packing",
+      "severity": "warn",
+      "confidence": "medium",
+      "team": "packing",
+      "numbers": {
+        "W": 1818,
+        "D": 1202,
+        "H": 255
+      },
+      "hasFix": false,
+      "message": "Carton 1818×1202×255 mm is smaller than the assembled product 1708×133×1676 mm — fine only if it ships knocked down (KD)."
+    },
+    {
+      "rule": "packing",
+      "severity": "info",
+      "confidence": "high",
+      "team": "packing",
+      "numbers": {
+        "cbm": 0.557,
+        "gw": 65.76131776,
+        "nw": 57.790245760000005,
+        "load40hc": 116
+      },
+      "hasFix": false,
+      "message": "Packed 1818×1202×255 mm = 0.557 m³, GW 65.8 kg (NW 57.8), 116 per 40'HC."
+    }
+  ]
+}

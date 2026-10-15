@@ -1,0 +1,37 @@
+{
+  "name": "bom-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Furniture BOM Studio \u2014 BOM-driven parametric editor with markup, review and meetings",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @bom/web dev",
+    "build": "pnpm --filter @bom/web build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "golden:update": "pnpm --dir scripts exec tsx update-golden.ts",
+    "fixtures:hollan": "pnpm --dir scripts exec tsx convert-hollan.ts",
+    "sync": "pnpm --filter @bom/sync start",
+    "worker": "pnpm --filter @bom/worker start",
+    "loadtest": "pnpm --filter @bom/sync loadtest",
+    "dictionary:overlay": "pnpm --dir scripts exec tsx build-overlay.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "@parcel/watcher",
+      "unrs-resolver"
+    ]
+  }
+}

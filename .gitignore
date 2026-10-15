@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+.data/
+*.tsbuildinfo
+.env
+.env.local
+test-results/
+playwright-report/
+.DS_Store
+# never commit original customer workbooks (may be encrypted / contain costing)
+fixtures/private/

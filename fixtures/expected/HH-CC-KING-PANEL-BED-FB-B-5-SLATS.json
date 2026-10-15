@@ -1,0 +1,48 @@
+{
+  "summary": {
+    "fail": 0,
+    "warn": 1,
+    "info": 2,
+    "waived": 0,
+    "parts": 30,
+    "instances": 55,
+    "unplaced": 0
+  },
+  "layoutNotes": [],
+  "findings": [
+    {
+      "rule": "bed-slats",
+      "severity": "info",
+      "confidence": "low",
+      "team": "engineering",
+      "numbers": {},
+      "hasFix": false,
+      "message": "Slats ship with this component; span, bearing and gaps are checked in the bed set (headboard + rails + footboard)."
+    },
+    {
+      "rule": "hardware-completeness",
+      "severity": "warn",
+      "confidence": "high",
+      "team": "hardware",
+      "numbers": {
+        "lines": 8
+      },
+      "hasFix": false,
+      "message": "8 hardware line(s) without a SKU: insert nut + pen, mur nanas, adj glide, sekrup, t nut, hanger bolt, mur nanas, adj glide."
+    },
+    {
+      "rule": "packing",
+      "severity": "info",
+      "confidence": "high",
+      "team": "packing",
+      "numbers": {
+        "cbm": 0.407,
+        "gw": 45.470754920000005,
+        "nw": 38.73587692,
+        "load40hc": 159
+      },
+      "hasFix": false,
+      "message": "Packed 2225×675×271 mm = 0.407 m³, GW 45.5 kg (NW 38.7), 159 per 40'HC."
+    }
+  ]
+}

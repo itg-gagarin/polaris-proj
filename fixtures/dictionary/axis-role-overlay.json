@@ -1,0 +1,406 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-15",
+  "description": "Axis Map / Default Role / Owner Team for the 50 most-used Std Codes (by # SG Lines). Proposed by name rules; status flips to \"reviewed\" after the dictionary owner checks each row.",
+  "rows": [
+    {
+      "stdCode": "VAN-01-01",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "sidePanel",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule side-panel"
+    },
+    {
+      "stdCode": "VAN-01-02",
+      "axisMap": "T:z W:x L:y",
+      "defaultRole": "door",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule door"
+    },
+    {
+      "stdCode": "VAN-01-03",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "drawer",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule drawer"
+    },
+    {
+      "stdCode": "VAN-01",
+      "axisMap": null,
+      "defaultRole": "body",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "assembly: body"
+    },
+    {
+      "stdCode": "VAN-04-01",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "tableLeg",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule table-leg"
+    },
+    {
+      "stdCode": "VAN-01-04",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "divider",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule divider"
+    },
+    {
+      "stdCode": "VAN-01-05",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "backRail",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule back-rail"
+    },
+    {
+      "stdCode": "VAN-01-06",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "bottomPanel",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule bottom"
+    },
+    {
+      "stdCode": "VAN-02",
+      "axisMap": null,
+      "defaultRole": "hardwarePack",
+      "ownerTeam": "hardware",
+      "status": "rule-proposed",
+      "note": "assembly: hardwarePack"
+    },
+    {
+      "stdCode": "HDB-01",
+      "axisMap": null,
+      "defaultRole": "skid",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "assembly: skid"
+    },
+    {
+      "stdCode": "DRS-02-01",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "drawer",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule drawer"
+    },
+    {
+      "stdCode": "VAN-01-07",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "backRail",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule back-rail"
+    },
+    {
+      "stdCode": "FTB-01",
+      "axisMap": null,
+      "defaultRole": "skid",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "assembly: skid"
+    },
+    {
+      "stdCode": "VAN-03",
+      "axisMap": null,
+      "defaultRole": "skid",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "assembly: skid"
+    },
+    {
+      "stdCode": "VAN-01-08",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "frontRail",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule front-frame"
+    },
+    {
+      "stdCode": "VAN-04",
+      "axisMap": null,
+      "defaultRole": "legs",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "assembly: legs"
+    },
+    {
+      "stdCode": "VAN-03-01",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "skidLong",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "rule pk-skid-long"
+    },
+    {
+      "stdCode": "VAN-03-02",
+      "axisMap": "T:y W:x L:z",
+      "defaultRole": "skidShort",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "rule pk-skid-short"
+    },
+    {
+      "stdCode": "NST-01-01",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "sidePanel",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule side-panel"
+    },
+    {
+      "stdCode": "CHD-01-01",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "drawer",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule drawer"
+    },
+    {
+      "stdCode": "VAN-04-02",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "apron",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule apron"
+    },
+    {
+      "stdCode": "VAN-04-03",
+      "axisMap": "T:x W:y L:z",
+      "defaultRole": "sideRailTop",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule side-rail-top"
+    },
+    {
+      "stdCode": "VAN-04-04",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "block",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule block"
+    },
+    {
+      "stdCode": "VAN-05",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "apron",
+      "ownerTeam": "design",
+      "status": "rule-proposed"
+    },
+    {
+      "stdCode": "VAN-01-09",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "frontRail",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule front-rail"
+    },
+    {
+      "stdCode": "NST-01-02",
+      "axisMap": "T:z W:y L:x",
+      "defaultRole": "drawer",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule drawer"
+    },
+    {
+      "stdCode": "VAN-01-10",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "cornerBlock",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule corner-block"
+    },
+    {
+      "stdCode": "RLS-03-01",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "slat",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule slat"
+    },
+    {
+      "stdCode": "CHD-01-02",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "sidePanel",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule side-panel"
+    },
+    {
+      "stdCode": "VAN-01-11",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "shelf",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule shelf"
+    },
+    {
+      "stdCode": "VAN-01-12",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "shelf",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule shelf"
+    },
+    {
+      "stdCode": "VAN-01-13",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "frontRail",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule front-rail"
+    },
+    {
+      "stdCode": "DRS-02-02",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "sidePanel",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule side-panel"
+    },
+    {
+      "stdCode": "RLS-01",
+      "axisMap": null,
+      "defaultRole": "hardwarePack",
+      "ownerTeam": "hardware",
+      "status": "rule-proposed",
+      "note": "assembly: hardwarePack"
+    },
+    {
+      "stdCode": "RLS-02-01",
+      "axisMap": "T:y W:x L:z",
+      "defaultRole": "slatLedger",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule slat-ledger"
+    },
+    {
+      "stdCode": "HDB-02",
+      "axisMap": null,
+      "defaultRole": "hardwarePack",
+      "ownerTeam": "hardware",
+      "status": "rule-proposed",
+      "note": "assembly: hardwarePack"
+    },
+    {
+      "stdCode": "RLS-02",
+      "axisMap": null,
+      "defaultRole": "sideRails",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "assembly: sideRails"
+    },
+    {
+      "stdCode": "HDB-03",
+      "axisMap": null,
+      "defaultRole": "legs",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "assembly: legs"
+    },
+    {
+      "stdCode": "DRS-02-03",
+      "axisMap": "T:z W:x L:y",
+      "defaultRole": "weightPanel",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule weight-panel"
+    },
+    {
+      "stdCode": "HDB-04",
+      "axisMap": null,
+      "defaultRole": "headboard",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "assembly: headboard"
+    },
+    {
+      "stdCode": "RLS-02-02",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "block",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule block"
+    },
+    {
+      "stdCode": "VAN-01-14",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "dustPanel",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "rule dust"
+    },
+    {
+      "stdCode": "VAN-03-03",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "skidBlock",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "rule pk-skid-block"
+    },
+    {
+      "stdCode": "ACB-02-01",
+      "axisMap": "T:x W:z L:y",
+      "defaultRole": "sidePanel",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule side-panel"
+    },
+    {
+      "stdCode": "NST-01",
+      "axisMap": null,
+      "defaultRole": "body",
+      "ownerTeam": "engineering",
+      "status": "rule-proposed",
+      "note": "assembly: body"
+    },
+    {
+      "stdCode": "NST-02",
+      "axisMap": null,
+      "defaultRole": "skid",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "assembly: skid"
+    },
+    {
+      "stdCode": "NST-02-01",
+      "axisMap": "T:y W:z L:x",
+      "defaultRole": "skidLong",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "rule pk-skid-long"
+    },
+    {
+      "stdCode": "NST-02-02",
+      "axisMap": "T:y W:x L:z",
+      "defaultRole": "skidShort",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "rule pk-skid-short"
+    },
+    {
+      "stdCode": "DRS-01",
+      "axisMap": null,
+      "defaultRole": "skid",
+      "ownerTeam": "packing",
+      "status": "rule-proposed",
+      "note": "assembly: skid"
+    },
+    {
+      "stdCode": "RLS-02-03",
+      "axisMap": "T:x W:y L:z",
+      "defaultRole": "bedRail",
+      "ownerTeam": "design",
+      "status": "rule-proposed",
+      "note": "rule bed-rail-panel"
+    }
+  ]
+}
