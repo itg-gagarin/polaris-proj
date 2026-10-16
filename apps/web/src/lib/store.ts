@@ -7,7 +7,8 @@ export type MarkupTool = 'hand' | 'select' | 'rect' | 'diamond' | 'ellipse' | 'a
 export type ModelTool = 'move' | 'rotate' | 'resize' | 'measure' | 'dimension' | 'section' | 'explode' | 'addPart';
 export type Tool = MarkupTool | ModelTool;
 export type Shading = 'solid' | 'material' | 'wireframe' | 'xray';
-export type Lens = 'none' | 'painting' | 'hardware' | 'engineering' | 'packing';
+/** 'finished': the product as it leaves the factory (one wood tone with grain); 'none': material colours. */
+export type Lens = 'finished' | 'none' | 'painting' | 'hardware' | 'engineering' | 'packing';
 export type ViewName = 'iso' | 'front' | 'back' | 'side' | 'top';
 export type LeftTab = 'products' | 'outliner' | 'layers';
 export type RightTab = 'properties' | 'comments' | 'review' | 'ai' | 'meeting' | 'history';

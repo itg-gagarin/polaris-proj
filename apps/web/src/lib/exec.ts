@@ -30,7 +30,7 @@ function activeFrame(live: LiveWorkspace): FrameItem | null {
 
 /** The synthetic frame the focused view renders (not stored on the board). */
 export function focusFrame(revisionId: string | null): FrameItem {
-  return { id: FOCUS_FRAME, kind: 'frame', type: 'viewport', rect: { x: 0, y: 0, w: 1, h: 1 }, z: 0, title: '', productId: null, revisionId, props: { shading: 'material' } };
+  return { id: FOCUS_FRAME, kind: 'frame', type: 'viewport', rect: { x: 0, y: 0, w: 1, h: 1 }, z: 0, title: '', productId: null, revisionId, props: { shading: 'material', lens: 'finished' } };
 }
 
 function selectedParts(rev: RevisionLive | null): Part[] {

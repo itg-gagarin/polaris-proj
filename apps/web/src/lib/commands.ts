@@ -43,7 +43,7 @@ const ALIASES: Record<string, string> = { M: 'MOVE', RO: 'ROTATE', SEC: 'SECTION
 const DIM_ALIAS: Record<string, DimKey> = { T: 'T', THICK: 'T', THICKNESS: 'T', TEBAL: 'T', W: 'W', WIDTH: 'W', LEBAR: 'W', L: 'L', LENGTH: 'L', PANJANG: 'L' };
 const FIELD_ALIAS: Record<string, 'qty' | 'finishCode' | 'material' | 'hardwareSku' | 'notes'> = { QTY: 'qty', FINISH: 'finishCode', MATERIAL: 'material', SKU: 'hardwareSku', NOTE: 'notes', NOTES: 'notes' };
 const VIEWS: Record<string, ViewName> = { FRONT: 'front', BACK: 'back', SIDE: 'side', RIGHT: 'side', TOP: 'top', ISO: 'iso', '1': 'front', '3': 'side', '7': 'top', '0': 'iso' };
-const LENSES: Lens[] = ['none', 'painting', 'hardware', 'engineering', 'packing'];
+const LENSES: Lens[] = ['finished', 'none', 'painting', 'hardware', 'engineering', 'packing'];
 const SHADINGS: Shading[] = ['solid', 'material', 'wireframe', 'xray'];
 const TOOLS: Tool[] = ['hand', 'select', 'rect', 'diamond', 'ellipse', 'arrow', 'line', 'pencil', 'text', 'note', 'eraser', 'laser', 'move', 'rotate', 'resize', 'measure', 'dimension', 'section', 'explode', 'addPart'];
 

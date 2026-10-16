@@ -64,6 +64,9 @@ export function inferParameters(content: RevisionContent, settings: WorkspaceSet
       assumptions.frontStyle = a('frontStyle', 'inset', 'medium', 'Inferred: fronts are narrower than the opening (no note says overlay)');
       if (front.dims.L > (W - 2 * (legF?.dims.T ?? 0))) assumptions.frontStyle = a('frontStyle', 'overlay', 'medium', 'Inferred: fronts are wider than the opening');
     }
+    if (ix.first('frontProfile') || ix.first('frontRail')) {
+      assumptions.faceFrameCorners = a('faceFrameCorners', 'butt-to-legs', 'low', 'Front profiles and rails are drawn from leg to leg so the front has no holes; when the BOM length is shorter the "Gap in the front frame" check shows by how much');
+    }
     if (fb && side) {
       // Box construction: which variant lets the bottom sit in grooves? (bottom L ≈ inner width + 2 × groove)
       const inside = fb.dims.L - 2 * side.dims.T + 2 * t.grooveAllowance;

@@ -6,6 +6,7 @@ import type { RevisionLive } from '@/lib/live';
 
 const CHOICES: Record<string, string[]> = {
   frontStyle: ['inset', 'overlay'],
+  faceFrameCorners: ['butt-to-legs', 'as-bom'],
   boxJoint: ['dovetail', 'dowel', 'rabbet'],
   slideType: ['side-mount', 'undermount', 'wood-runner'],
   counterweight: ['true', 'false'],

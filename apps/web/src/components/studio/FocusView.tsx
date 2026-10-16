@@ -60,7 +60,7 @@ export function FocusView() {
   );
 }
 
-const frameFor = (revisionId: string): FrameItem => ({ id: FOCUS_FRAME, kind: 'frame', type: 'viewport', rect: { x: 0, y: 0, w: 1, h: 1 }, z: 0, title: '', productId: null, revisionId, props: { shading: 'material' } });
+const frameFor = (revisionId: string): FrameItem => ({ id: FOCUS_FRAME, kind: 'frame', type: 'viewport', rect: { x: 0, y: 0, w: 1, h: 1 }, z: 0, title: '', productId: null, revisionId, props: { shading: 'material', lens: 'finished' } });
 
 /** HTML views zoom with the zoom control (CSS zoom keeps scrolling right) and Ctrl+wheel. */
 function ZoomPane({ className, children }: { className: string; children: React.ReactNode }) {
@@ -113,6 +113,7 @@ function useCtrlWheel() {
 }
 
 const LENSES: [Lens, MsgKey][] = [
+  ['finished', 'v3d.color.finished'],
   ['none', 'v3d.color.none'],
   ['engineering', 'v3d.color.engineering'],
   ['painting', 'v3d.color.painting'],
@@ -130,8 +131,12 @@ function ModelView({ revisionId }: { revisionId: string }) {
   const t = useT();
   const rev = useRevision(revisionId);
   const stored = useUi((s) => s.frameViews[FOCUS_FRAME]);
-  const view = stored ?? defaultFrameView({ shading: 'material' });
+  const view = stored ?? defaultFrameView({ shading: 'material', lens: 'finished' });
   const set = (p: Partial<typeof view>) => useUi.getState().setFrameView(FOCUS_FRAME, p);
+  // The focused view starts in the finished look (later changes merge onto this, not onto the board default).
+  useEffect(() => {
+    if (!useUi.getState().frameViews[FOCUS_FRAME]) useUi.getState().setFrameView(FOCUS_FRAME, defaultFrameView({ shading: 'material', lens: 'finished' }));
+  }, []);
   const showFasteners = usePrefs((s) => s.showFasteners);
   const setPrefs = usePrefs((s) => s.setPrefs);
   const frame = useMemo(() => frameFor(revisionId), [revisionId]);

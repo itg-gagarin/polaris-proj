@@ -3,6 +3,7 @@ import { normalizeName, BASE_POSITIONS } from '@bom/dictionary';
 import { worldSize } from '../geometry';
 import { isGeometric, isVisible } from '../model';
 import type { CheckContext, CheckRule } from './types';
+import { faceEndGaps } from '../layout/case';
 import { finding, fixPatch, mm, r1, setDim, ext, setAxis } from './util';
 
 const CASE = ['caseWithDrawers', 'caseWithDoors', 'bookcase'] as const;
@@ -784,9 +785,10 @@ export const sanityRule: CheckRule = {
 
 /* ------------------------------------------------------------------ */
 /**
- * Front frame gaps: a horizontal face member (rail / profile) whose end does not reach a leg, stile or
- * inner profile at its height leaves a visible hole in the front. Either its length or the joint the
- * template assumes is wrong, so this is Medium confidence and has no automatic fix.
+ * Front frame gaps: a horizontal face member (rail / profile) whose cut length does not reach the legs
+ * at its height. With faceFrameCorners = butt-to-legs the model draws it leg to leg (no hole) and this
+ * reports how much longer it is drawn than the BOM says; with as-bom the hole shows in the model.
+ * Medium confidence: it depends on how the template assumes the face frame is joined.
  */
 const FACE_H = new Set(['frontProfile', 'frontRail', 'frontRailBottom']);
 const FACE_V = new Set(['legFront', 'sideInnerProfile', 'frontStile']);
@@ -799,17 +801,25 @@ export const faceGapRule: CheckRule = {
   run(ctx) {
     const inst = ctx.layout.instances.filter((i) => i.source !== 'tray' && !i.packing);
     const verticals = inst.filter((i) => FACE_V.has(i.role ?? ''));
-    const overlap = (a0: number, a1: number, b0: number, b1: number) => Math.min(a1, b1) - Math.max(a0, b0);
-    const worst = new Map<string, { gap: number; len: number; opening: number; y: number }>();
+    const worst = new Map<string, { gap: number; len: number; opening: number; y: number; drawn: boolean }>();
     for (const h of inst.filter((i) => FACE_H.has(i.role ?? ''))) {
-      const touching = verticals.filter((v) => overlap(v.min.y, v.max.y, h.min.y, h.max.y) > 1 && overlap(v.min.z, v.max.z, h.min.z, h.max.z) > 1);
-      const left = touching.filter((v) => v.min.x < h.min.x).reduce((m, v) => Math.max(m, v.max.x), -Infinity);
-      const right = touching.filter((v) => v.max.x > h.max.x).reduce((m, v) => Math.min(m, v.min.x), Infinity);
-      if (!Number.isFinite(left) || !Number.isFinite(right)) continue;
-      const gap = Math.max(h.min.x - left, right - h.max.x);
+      const p = ctx.ix.byId.get(h.partId);
+      if (!p) continue;
+      const cut = ext(p, 'x');
+      let gap: number;
+      let opening: number;
+      if (h.stretched) {
+        opening = h.max.x - h.min.x;
+        gap = (opening - cut) / 2;
+      } else {
+        const g = faceEndGaps(h, verticals);
+        if (!g) continue;
+        gap = Math.max(g.left, g.right);
+        opening = g.x1 - g.x0;
+      }
       if (gap <= ctx.t.fitTolerance) continue;
       const cur = worst.get(h.partId);
-      if (!cur || gap > cur.gap) worst.set(h.partId, { gap, len: h.max.x - h.min.x, opening: right - left, y: h.min.y });
+      if (!cur || gap > cur.gap) worst.set(h.partId, { gap, len: cut, opening, y: h.min.y, drawn: !!h.stretched });
     }
     return [...worst.entries()].map(([partId, w]) => {
       const p = ctx.ix.byId.get(partId);
@@ -817,8 +827,11 @@ export const faceGapRule: CheckRule = {
         severity: 'warn',
         confidence: 'medium',
         partIds: [partId],
-        message: `${name(p)} is ${mm(w.len)} mm, but the space between the legs at that height is ${mm(w.opening)} mm, so the front frame has a ${mm(w.gap)} mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong.`,
+        message: w.drawn
+          ? `${name(p)} is ${mm(w.len)} mm on the BOM, but the space between the legs at that height is ${mm(w.opening)} mm. The model draws it leg to leg (${mm(w.gap)} mm longer at each end) so the front has no holes. Check the cutting length, or set the assumption "faceFrameCorners" to as-bom to see the gap.`
+          : `${name(p)} is ${mm(w.len)} mm, but the space between the legs at that height is ${mm(w.opening)} mm, so the front frame has a ${mm(w.gap)} mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong.`,
         numbers: { length: r1(w.len), opening: r1(w.opening), gap: r1(w.gap), height: r1(w.y) },
+        assumptionKeys: ['faceFrameCorners'],
       });
     });
   },

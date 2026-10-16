@@ -39,7 +39,7 @@
         "height": 121
       },
       "hasFix": false,
-      "message": "\"frame depan datar bawah\" is 489 mm, but the space between the legs at that height is 571 mm, so the front frame has a 41 mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong."
+      "message": "\"frame depan datar bawah\" is 489 mm on the BOM, but the space between the legs at that height is 571 mm. The model draws it leg to leg (41 mm longer at each end) so the front has no holes. Check the cutting length, or set the assumption \"faceFrameCorners\" to as-bom to see the gap."
     },
     {
       "rule": "face-frame-gap",
@@ -53,7 +53,7 @@
         "height": 629
       },
       "hasFix": false,
-      "message": "\"frame profil datar atas - bwh\" is 489 mm, but the space between the legs at that height is 571 mm, so the front frame has a 41 mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong."
+      "message": "\"frame profil datar atas - bwh\" is 489 mm on the BOM, but the space between the legs at that height is 571 mm. The model draws it leg to leg (41 mm longer at each end) so the front has no holes. Check the cutting length, or set the assumption \"faceFrameCorners\" to as-bom to see the gap."
     },
     {
       "rule": "hardware-completeness",

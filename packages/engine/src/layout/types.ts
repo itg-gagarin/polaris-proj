@@ -24,6 +24,8 @@ export interface PlacedInstance {
   explode: Vec3;
   /** Cut size was clipped to the assembly envelope (trim allowance). */
   trimmed: boolean;
+  /** Drawn longer than its cut size to close the front frame (assumption faceFrameCorners), mm per end. */
+  stretched?: number;
   kind: string;
   /** Packing parts are drawn in the packing lens and skipped by clash. */
   packing: boolean;

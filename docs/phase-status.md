@@ -106,3 +106,15 @@ unclear how to add hardware. What changed (the PRD's power features stay under S
 
 Open: fastener positions are suggestions (Low confidence) until joints carry fastener counts; the
 corner gaps above need the factory's answer on how the face frame is joined.
+
+### Follow-up: seamless finished look (2026-10-16)
+
+- Front frame corners: inferred assumption `faceFrameCorners = butt-to-legs` draws the horizontal face
+  profiles and rails leg to leg (no 41 mm holes); `face-frame-gap` reports the BOM length against the
+  drawn length. Set the assumption to `as-bom` to see the BOM geometry exactly.
+- 3D "Finished look" (default in the simple layout): one honey-teak finish with procedural wood grain
+  along each part's length, eased (light) edges, studio reflections, no outlines. Touching parts no
+  longer get the size inset (it showed as hairline seams); a ≤ 0.4 mm per-part depth tie-break stops
+  flush faces flickering instead.
+- Not from the BOM, so not drawn: tapered legs, profiles' moulded shapes, woven seats. Seating has no
+  layout template yet.

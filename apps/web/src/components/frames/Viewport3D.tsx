@@ -12,6 +12,7 @@ import { materialColor } from '@bom/exporters/colors';
 import { useUi, FOCUS_FRAME, type FrameView, type ViewName } from '@/lib/store';
 import { projectors, pickers, cameraSetters, zoomers } from '@/lib/registry';
 import { usePrefs } from '@/lib/prefs';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { RevisionLive } from '@/lib/live';
 import { useEditor } from '@/lib/editor';
 
@@ -48,7 +49,15 @@ interface Style {
   opacity: number;
   stripes?: boolean;
   hidden?: boolean;
+  /** Procedural wood grain along the part's length. */
+  wood?: boolean;
+  /** Brushed metal (hardware in the finished look). */
+  metal?: boolean;
 }
+
+/** Finished look: one honey-teak finish like the catalogue renders; veneered panels a shade lighter. */
+const FINISH_SOLID = '#9c6b3c';
+const FINISH_PANEL = '#ad7e4c';
 
 /** Colour per instance for the frame's shading + team lens (PRD §5 viewport modes). */
 function styleFor(i: PlacedInstance, part: Part | undefined, view: FrameView, failing: Set<string>, clashing: Set<string>, aiChanged: Set<string>): Style {
@@ -58,6 +67,9 @@ function styleFor(i: PlacedInstance, part: Part | undefined, view: FrameView, fa
   if (aiChanged.has(part.id)) return { color: '#10b981', opacity: 0.95 };
   const base = view.shading === 'solid' ? (part.kind === 'hardware' ? '#7b8494' : '#cfd3d8') : materialColor(part);
   switch (view.lens) {
+    case 'finished':
+      if (part.kind === 'hardware') return { color: '#55585e', opacity: 1, metal: true };
+      return { color: part.kind === 'panel' || part.kind === 'veneer' ? FINISH_PANEL : FINISH_SOLID, opacity: view.shading === 'xray' ? 0.22 : 1, wood: view.shading !== 'solid' };
     case 'painting':
       if (part.kind === 'hardware') return { color: '#9ca3af', opacity: 0.25 };
       if (!part.finishCode) return visible ? { color: '#fca5a5', opacity: 1, stripes: true } : { color: '#d1d5db', opacity: 0.35 };
@@ -70,7 +82,7 @@ function styleFor(i: PlacedInstance, part: Part | undefined, view: FrameView, fa
     case 'packing':
       return i.packing ? { color: '#b45309', opacity: 1 } : { color: '#c7cdd4', opacity: 0.18 };
     default:
-      return { color: failing.has(part.id) ? base : base, opacity: view.shading === 'xray' ? 0.22 : 1 };
+      return { color: base, opacity: view.shading === 'xray' ? 0.22 : 1, wood: view.shading === 'material' && part.kind !== 'hardware' };
   }
 }
 
@@ -138,12 +150,32 @@ export function Viewport3D(p: Props) {
       <directionalLight position={[2000, 3200, 2600]} intensity={1.05} />
       <directionalLight position={[-2200, 1200, -1600]} intensity={0.3} />
       <directionalLight position={[-600, 900, 3000]} intensity={0.25} />
+      <StudioLight enabled={!fast} />
       <AdaptiveDpr />
       <Scene {...p} fast={fast} showTip={showTip} />
     </Canvas>
     <div ref={tip} className="v3d-tip" style={{ display: 'none' }} />
     </>
   );
+}
+
+/** Soft studio reflections (a procedural room, no download) for the detailed quality. */
+function StudioLight({ enabled }: { enabled: boolean }) {
+  const { gl, scene, invalidate } = useThree();
+  useEffect(() => {
+    if (!enabled) return;
+    const pm = new THREE.PMREMGenerator(gl);
+    const env = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = env;
+    scene.environmentIntensity = 0.4;
+    invalidate();
+    return () => {
+      scene.environment = null;
+      env.dispose();
+      pm.dispose();
+    };
+  }, [enabled, gl, scene, invalidate]);
+  return null;
 }
 
 function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focus, fast, fasteners: fastenersProp, showTip }: Props & { fast: boolean; showTip: (text: string | null, x?: number, y?: number) => void }) {
@@ -228,7 +260,7 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
     const m = new Map<string, typeof placed>();
     for (const x of placed) {
       if (x.style.hidden) continue;
-      const k = `${x.style.color}|${x.style.opacity}|${x.style.stripes ? 1 : 0}`;
+      const k = `${x.style.color}|${x.style.opacity}|${x.style.stripes ? 1 : 0}|${x.style.wood ? 1 : 0}|${x.style.metal ? 1 : 0}`;
       m.set(k, [...(m.get(k) ?? []), x]);
     }
     return [...m.entries()];
@@ -444,6 +476,7 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
   };
 
   const measure = ui.measure?.revisionId === revisionId ? ui.measure : null;
+  // The finished look is seamless (no drawn outlines); material colours keep soft outlines.
   const allEdges = view.shading === 'wireframe' || view.shading === 'xray' || (!fast && view.lens === 'none' && !showFasteners);
   const edgesFor = allEdges ? placed.filter((x) => !x.style.hidden) : placed.filter((x) => selected.has(x.i.partId) || (view.lens === 'none' && failing.has(x.i.partId)));
 
@@ -522,12 +555,109 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
   );
 }
 
-const inset = (v: number) => Math.max(0.5, v - (v * 0.003 + 0.05));
+/**
+ * Part material: standard PBR plus, in the shader,
+ * - wood grain running along the part's longest side (rings across, pores along), varied per piece;
+ * - a soft light edge (≈1.5 mm), so pieces read as eased-edge solid wood instead of sharp boxes;
+ * - a tiny per-part depth tie-break (≤ 0.4 mm, smaller parts in front, constant in mm at any
+ *   distance): faces of touching parts that lie in one plane never flicker, and no gap is left
+ *   between them (the old size inset showed as hairline seams).
+ */
+function partMaterial(style: Style, clip: THREE.Plane[], tex: THREE.Texture | null): THREE.MeshStandardMaterial {
+  const m = new THREE.MeshStandardMaterial({
+    color: style.color,
+    map: tex,
+    transparent: style.opacity < 1,
+    opacity: style.opacity,
+    depthWrite: style.opacity >= 1,
+    roughness: style.metal ? 0.35 : style.wood ? 0.62 : 0.75,
+    metalness: style.metal ? 0.75 : 0.02,
+    clippingPlanes: clip,
+    clipShadows: true,
+  });
+  const wood = !!style.wood;
+  m.onBeforeCompile = (sh) => {
+    sh.defines = { ...(sh.defines ?? {}), ...(wood ? { WOOD: '' } : {}) };
+    sh.vertexShader = sh.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vPartPos;
+varying vec3 vPartSize;
+varying vec3 vPartSeed;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+#ifdef USE_INSTANCING
+  vec3 psz = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+  vPartSeed = instanceMatrix[3].xyz;
+#else
+  vec3 psz = vec3(1.0);
+  vPartSeed = vec3(0.0);
+#endif
+  vPartSize = psz;
+  vPartPos = position * psz;`,
+      )
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+  // Depth tie-break in mm (2·near·Δ/w in clip space keeps Δ constant with distance; near = 20 mm).
+  float pvol = log(psz.x * psz.y * psz.z + 1.0);
+  float rank = 1.0 - clamp(pvol / 22.0, 0.0, 1.0);
+  gl_Position.z -= 2.0 * 20.0 * (0.4 * rank) / max(gl_Position.w, 1.0);`,
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vPartPos;
+varying vec3 vPartSize;
+varying vec3 vPartSeed;
+float wHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float wNoise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(wHash(i), wHash(i + vec2(1.0, 0.0)), f.x), mix(wHash(i + vec2(0.0, 1.0)), wHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+  vec3 dEdge = vPartSize * 0.5 - abs(vPartPos);
+  float e1 = min(dEdge.x, min(dEdge.y, dEdge.z));
+  float e3 = max(dEdge.x, max(dEdge.y, dEdge.z));
+  float e2 = dEdge.x + dEdge.y + dEdge.z - e1 - e3;
+#ifdef WOOD
+  vec3 sz = vPartSize;
+  vec3 wp = vPartPos + vPartSeed * 0.731;
+  float along; float ca; float cb;
+  if (sz.x >= sz.y && sz.x >= sz.z) { along = wp.x; ca = wp.y; cb = wp.z; }
+  else if (sz.y >= sz.z) { along = wp.y; ca = wp.x; cb = wp.z; }
+  else { along = wp.z; ca = wp.x; cb = wp.y; }
+  float warp = wNoise(vec2(along * 0.005, ca * 0.015 + cb * 0.01)) * 16.0 + wNoise(vec2(along * 0.028, cb * 0.04)) * 3.0;
+  float ring = ca * 0.55 + cb * 0.85 + warp;
+  float g = fract(ring * 0.06);
+  float late = smoothstep(0.55, 0.92, g) * (1.0 - smoothstep(0.92, 1.0, g));
+  float pores = wNoise(vec2(along * 0.22, ring * 1.7));
+  float streak = wNoise(vec2(along * 0.0015, ring * 0.04));
+  float piece = 0.95 + 0.08 * wHash(vPartSeed.xz * 0.013 + vPartSeed.y * 0.007);
+  diffuseColor.rgb *= piece * (1.0 - 0.09 * late - 0.035 * pores + 0.05 * (streak - 0.5));
+#endif
+  // Eased edge: a soft highlight within ~1.5 mm of an edge.
+  float ease = 1.0 - smoothstep(0.0, 1.6, e2);
+  diffuseColor.rgb = mix(diffuseColor.rgb, min(diffuseColor.rgb * 1.22 + 0.025, vec3(1.0)), ease * 0.55);`,
+      );
+  };
+  m.customProgramCacheKey = () => (wood ? 'part-wood' : 'part-plain');
+  return m;
+}
 
 function InstGroup({ items, clip, onClick, onHover, keyOf }: { items: { i: PlacedInstance; center: THREE.Vector3; style: Style }[]; clip: THREE.Plane[]; onClick: (e: ThreeEvent<MouseEvent>) => void; onHover: (key: string | null, x: number, y: number) => void; keyOf: (e: ThreeEvent<PointerEvent>) => string | null }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const style = items[0].style;
   const tex = useMemo(() => (style.stripes ? stripeTexture() : null), [style.stripes]);
+  const material = useMemo(() => partMaterial(style, clip, tex), [style.color, style.opacity, style.wood, style.metal, clip, tex]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => material.dispose(), [material]);
   useEffect(() => {
     const m = ref.current;
     if (!m) return;
@@ -535,9 +665,7 @@ function InstGroup({ items, clip, onClick, onHover, keyOf }: { items: { i: Place
     items.forEach((x, n) => {
       o.position.copy(x.center);
       o.rotation.set(x.i.rotation.x * DEG, x.i.rotation.y * DEG, x.i.rotation.z * DEG);
-      // A hairline, size-dependent inset (0.3 % + 0.05 mm): two parts flush on one face end up a few
-      // hundredths of a mm apart, so the one that should show wins instead of flickering.
-      o.scale.set(inset(x.i.size.x), inset(x.i.size.y), inset(x.i.size.z));
+      o.scale.set(Math.max(0.5, x.i.size.x), Math.max(0.5, x.i.size.y), Math.max(0.5, x.i.size.z));
       o.updateMatrix();
       m.setMatrixAt(n, o.matrix);
     });
@@ -548,16 +676,15 @@ function InstGroup({ items, clip, onClick, onHover, keyOf }: { items: { i: Place
   return (
     <instancedMesh
       ref={ref}
-      args={[UNIT_BOX, undefined, items.length]}
+      args={[UNIT_BOX, material, items.length]}
+      material={material}
       onClick={onClick}
       onPointerMove={(e) => {
         e.stopPropagation();
         onHover(keyOf(e), e.nativeEvent.offsetX, e.nativeEvent.offsetY);
       }}
       onPointerOut={() => onHover(null, 0, 0)}
-    >
-      <meshStandardMaterial color={style.color} map={tex} transparent={style.opacity < 1} opacity={style.opacity} depthWrite={style.opacity >= 1} roughness={0.75} metalness={0.05} clippingPlanes={clip} clipShadows />
-    </instancedMesh>
+    />
   );
 }
 

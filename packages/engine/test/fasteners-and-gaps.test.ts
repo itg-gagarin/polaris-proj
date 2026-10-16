@@ -110,3 +110,21 @@ describe('knobs, pulls and the drawer-pull check', () => {
     expect(f.numbers).toEqual({ drawers: 8, handles: 6, without: 2 });
   });
 });
+
+describe('front frame corners (assumption faceFrameCorners)', () => {
+  const profileOf = (a: ReturnType<typeof analyze>) => a.layout.instances.filter((i) => i.role === 'frontProfile');
+  it('butt-to-legs (inferred default): the 489 mm profiles are drawn 70 → 641 mm, leg to leg, no hole', () => {
+    const c = products.find((x) => x.code === 'HH-CC-NIGHT-STAND')!.content;
+    expect(c.assumptions.faceFrameCorners?.value).toBe('butt-to-legs');
+    const a = analyze(c, DEFAULT_SETTINGS, { requireConfirmed: true });
+    for (const i of profileOf(a)) expect([i.min.x, i.max.x, i.stretched]).toEqual([70, 641, 41]);
+    expect(a.findings.find((f) => f.ruleId === 'face-frame-gap')!.message).toMatch(/draws it leg to leg/);
+  });
+  it('as-bom: the profiles keep their 489 mm and the 41 mm holes show', () => {
+    const c = products.find((x) => x.code === 'HH-CC-NIGHT-STAND')!.content;
+    const asBom = applyPatch(c, makePatch([{ op: 'setAssumption', key: 'faceFrameCorners', assumption: { key: 'faceFrameCorners', value: 'as-bom', source: 'user', confidence: 'high' } }], 'x')).content;
+    const a = analyze(asBom, DEFAULT_SETTINGS, { requireConfirmed: true });
+    for (const i of profileOf(a)) expect([i.min.x, i.max.x, i.stretched]).toEqual([111, 600, undefined]);
+    expect(a.findings.find((f) => f.ruleId === 'face-frame-gap')!.message).toMatch(/41 mm gap at each end/);
+  });
+});

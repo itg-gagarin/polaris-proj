@@ -9,7 +9,7 @@ import { normalizeName } from '@bom/dictionary';
 import { v3 } from '../geometry';
 import type { ContentIndex } from '../model';
 import { instanceCount, type Placer } from './placer';
-import type { DrawerRow, DrawerSlot, Layout } from './types';
+import type { DrawerRow, DrawerSlot, Layout, PlacedInstance } from './types';
 
 const EXPLODE = 220;
 
@@ -469,6 +469,12 @@ export function layoutCase(ix: ContentIndex, params: Record<string, number>, set
     }),
   );
 
+  /* ---------------- front frame corners ---------------- */
+  // A horizontal face rail / profile shorter than the gap between the legs at its height would leave a
+  // hole at each end. With faceFrameCorners = butt-to-legs (default) it is drawn leg to leg; the
+  // face-frame-gap check still reports the difference from the BOM length.
+  if (String(ix.content.assumptions.faceFrameCorners?.value ?? 'butt-to-legs') === 'butt-to-legs') closeFaceFrame(pl, settings.thresholds.fitTolerance);
+
   /* ---------------- packing ---------------- */
   layoutSkids(ix, pl, W, D);
 
@@ -493,6 +499,33 @@ export function layoutCase(ix: ContentIndex, params: Record<string, number>, set
   function each(p: Part, fn: (i: number, s: Vec3) => void) {
     const s = pl.sizeOf(p, null).size;
     for (let i = 0; i < instanceCount(p); i++) fn(i, s);
+  }
+}
+
+const FACE_H = new Set(['frontProfile', 'frontRail', 'frontRailBottom']);
+const FACE_V = new Set(['legFront', 'sideInnerProfile', 'frontStile']);
+/** Largest end gap closed this way: anything bigger is not a corner, it stays visible. */
+export const MAX_FACE_STRETCH_MM = 80;
+
+/** End gaps of a horizontal face member to the nearest vertical member that overlaps it in height and depth. */
+export function faceEndGaps(h: PlacedInstance, verticals: PlacedInstance[]): { left: number; right: number; x0: number; x1: number } | null {
+  const ov = (a0: number, a1: number, b0: number, b1: number) => Math.min(a1, b1) - Math.max(a0, b0);
+  const touching = verticals.filter((v) => ov(v.min.y, v.max.y, h.min.y, h.max.y) > 1 && ov(v.min.z, v.max.z, h.min.z, h.max.z) > 1);
+  const x0 = touching.filter((v) => v.min.x < h.min.x).reduce((m, v) => Math.max(m, v.max.x), -Infinity);
+  const x1 = touching.filter((v) => v.max.x > h.max.x).reduce((m, v) => Math.min(m, v.min.x), Infinity);
+  if (!Number.isFinite(x0) || !Number.isFinite(x1)) return null;
+  return { left: h.min.x - x0, right: x1 - h.max.x, x0, x1 };
+}
+
+function closeFaceFrame(pl: Placer, tol: number): void {
+  const verticals = pl.instances.filter((i) => FACE_V.has(i.role ?? ''));
+  for (const h of pl.instances.filter((i) => FACE_H.has(i.role ?? '') && i.rotation.x === 0 && i.rotation.y === 0 && i.rotation.z === 0 && i.source === 'template')) {
+    const g = faceEndGaps(h, verticals);
+    if (!g || Math.max(g.left, g.right) <= tol || Math.max(g.left, g.right) > MAX_FACE_STRETCH_MM) continue;
+    h.stretched = Math.max(g.left, g.right);
+    h.min = { ...h.min, x: Math.min(h.min.x, g.x0) };
+    h.max = { ...h.max, x: Math.max(h.max.x, g.x1) };
+    h.size = { ...h.size, x: h.max.x - h.min.x };
   }
 }
 

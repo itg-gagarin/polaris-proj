@@ -118,7 +118,7 @@ function FrameHostInner({ item, screen, onStartDrag, onStartResize, onRemove }: 
               ))}
             </select>
             <select className="select" aria-label="Lens" value={view.lens} onChange={(e) => set({ lens: e.target.value as Lens })} style={{ fontSize: 11, padding: '0 4px' }}>
-              {(['none', 'painting', 'hardware', 'engineering', 'packing'] as Lens[]).map((s) => (
+              {(['finished', 'none', 'painting', 'hardware', 'engineering', 'packing'] as Lens[]).map((s) => (
                 <option key={s} value={s}>
                   {t(`lens.${s}`)}
                 </option>
