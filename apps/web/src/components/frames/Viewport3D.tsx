@@ -130,6 +130,8 @@ export function Viewport3D(p: Props) {
     el.style.display = 'block';
     el.style.transform = `translate(${x + 12}px, ${y + 12}px)`;
   }, []);
+  // Note pins are DOM over the canvas (projected from 3D), not 3D-portal elements.
+  const [pins, setPins] = useState<NotePin[]>([]);
   return (
     <>
     <Canvas
@@ -152,9 +154,14 @@ export function Viewport3D(p: Props) {
       <directionalLight position={[-600, 900, 3000]} intensity={0.25} />
       <StudioLight enabled={!fast} />
       <AdaptiveDpr />
-      <Scene {...p} fast={fast} showTip={showTip} />
+      <Scene {...p} fast={fast} showTip={showTip} onPins={p.focus ? setPins : undefined} />
     </Canvas>
     <div ref={tip} className="v3d-tip" style={{ display: 'none' }} />
+    {pins.map((pin) => (
+      <button key={pin.partId} className="note-pin" style={{ position: 'absolute', left: pin.x, top: pin.y, transform: 'translate(-50%, -100%)', zIndex: 4 }} title={pin.title} onClick={() => useUi.getState().select(p.revisionId, [pin.partId])} data-testid="note-pin">
+        💬 {pin.n}
+      </button>
+    ))}
     </>
   );
 }
@@ -178,7 +185,15 @@ function StudioLight({ enabled }: { enabled: boolean }) {
   return null;
 }
 
-function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focus, fast, fasteners: fastenersProp, showTip }: Props & { fast: boolean; showTip: (text: string | null, x?: number, y?: number) => void }) {
+interface NotePin {
+  partId: string;
+  n: number;
+  x: number;
+  y: number;
+  title: string;
+}
+
+function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focus, fast, fasteners: fastenersProp, showTip, onPins }: Props & { fast: boolean; showTip: (text: string | null, x?: number, y?: number) => void; onPins?: (pins: NotePin[]) => void }) {
   const { camera, invalidate, size, raycaster, scene } = useThree();
   const controls = useRef<any>(null);
   // Subscribe to what the scene draws only (not camera ticks, toasts, other frames…).
@@ -326,6 +341,33 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
 
   useEffect(() => invalidate(), [placed, ui.selection, view, invalidate]);
 
+  // Screen positions of note pins (top centre of the part), refreshed when the camera or model moves.
+  const pinFrame = useRef(0);
+  const lastPins = useRef('');
+  const updatePins = () => {
+    if (!onPins) return;
+    cancelAnimationFrame(pinFrame.current);
+    pinFrame.current = requestAnimationFrame(() => {
+      const out: NotePin[] = [];
+      for (const [partId, n] of noteOn) {
+        const at = placed.find((x) => x.i.partId === partId);
+        if (!at) continue;
+        const v = new THREE.Vector3(at.center.x, at.i.max.y + at.i.explode.y * view.explode, at.center.z).project(camera);
+        if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) continue;
+        out.push({ partId, n, x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height, title: at.part?.name ?? '' });
+      }
+      // Only when something moved (≥ 1 px), so updating the overlay never loops.
+      const sig = out.map((q) => `${q.partId}:${Math.round(q.x)}:${Math.round(q.y)}:${q.n}`).join('|');
+      if (sig === lastPins.current) return;
+      lastPins.current = sig;
+      onPins(out);
+    });
+  };
+  useEffect(() => {
+    updatePins();
+    return () => cancelAnimationFrame(pinFrame.current);
+  }); // every render: cheap (a handful of notes)
+
   // Zoom control / keyboard (focused view only): 100 % = the whole model fits.
   const reportZoom = useRef<ReturnType<typeof setTimeout> | null>(null);
   const publishZoom = () => {
@@ -406,6 +448,7 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
   const onCameraChange = () => {
     invalidate();
     publishZoom();
+    updatePins();
     const t = controls.current?.target as THREE.Vector3 | undefined;
     if (t && ui.activeFrameId === frame.id) {
       const cam = { position: camera.position.toArray() as [number, number, number], target: t.toArray() as [number, number, number] };
@@ -525,18 +568,6 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
             );
           }),
       )}
-      {focus &&
-        noteOn.map(([partId, n]) => {
-          const at = placed.find((x) => x.i.partId === partId);
-          if (!at) return null;
-          return (
-            <Html key={`note-${partId}`} position={[at.center.x, at.i.max.y + at.i.explode.y * view.explode, at.center.z]} center zIndexRange={[15, 5]}>
-              <button className="note-pin" title={at.part?.name} onClick={() => useUi.getState().select(revisionId, [partId])} data-testid="note-pin">
-                💬 {n}
-              </button>
-            </Html>
-          );
-        })}
       {measure && <MeasureLine m={measure} analysis={analysis} />}
       {((frame.props.dimensions as DimDef[] | undefined) ?? []).map((d) => {
         const ca = placed.find((x) => x.i.key === d.a.key)?.center;
