@@ -77,7 +77,7 @@ function ThreadCard({ th, rev }: { th: Thread; rev: RevisionLive }) {
   const act = async (b: Record<string, unknown>) => {
     try {
       const r = (await threadAction(th.id, b)) as { thread: Thread } & Partial<PatchResult>;
-      if (r.revision) rev.applyServerContent(r.revision.content);
+      if (r.revision) rev.applyServerChange(r.revision.content, r.patch);
       await rev.refresh();
     } catch (e) {
       useUi.getState().toast((e as Error).message, 'error');

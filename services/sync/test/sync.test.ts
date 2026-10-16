@@ -3,7 +3,7 @@ import { MemoryRepository } from '@bom/db';
 import { seedDemo, DEMO_BOARD_ID, DEMO_USERS, DEMO_WORKSPACE_ID } from '@bom/db/seed';
 import { boardItems, readRevision, revisionMaps } from '@bom/collab';
 import { contentHash, makePatch, type Revision } from '@bom/domain';
-import { startSyncServer, connectClient, runLoadTest, signHs256, userIdFromToken, verifyHs256, type SyncServer } from '../src';
+import { startSyncServer, connectClient, runLoadTest, signHs256, userIdFromToken, verifyHs256, mintSyncToken, mintInternalToken, type SyncServer } from '../src';
 
 let repo: MemoryRepository;
 let sync: SyncServer;
@@ -109,6 +109,45 @@ describe('board and revision documents', () => {
     await repo.upsertRevision({ ...rev, state: 'released', releasedAt: new Date().toISOString() });
     const c = await connectClient(sync.url, `revision:${rev.id}`, 'dev:u_margono');
     expect(c.provider.authorizedScope).toBe('readonly');
+    c.provider.destroy();
+  });
+});
+
+describe('deployed as a public service (Vercel services)', () => {
+  const secret = 'shared-secret';
+  let svc: SyncServer;
+  beforeAll(async () => {
+    svc = await startSyncServer({ repo, env: { SYNC_TOKEN_SECRET: secret }, port: 0, snapshotMs: 0 });
+  });
+  afterAll(async () => svc?.stop());
+
+  it('accepts only tokens signed by the web app; dev tokens are refused', async () => {
+    expect(userIdFromToken(mintSyncToken('u_budi', secret), { SYNC_TOKEN_SECRET: secret })).toBe('u_budi');
+    expect(() => userIdFromToken(mintInternalToken(secret), { SYNC_TOKEN_SECRET: secret })).toThrow(/Not a sync token/);
+    await expect(connectClient(svc.url, `revision:${draft.id}`, 'dev:u_budi', 3000)).rejects.toThrow(/auth failed/);
+    // Behind the /sync public path prefix (vercel.json rewrite).
+    const c = await connectClient(`${svc.url}/sync/ws`, `revision:${draft.id}`, mintSyncToken('u_budi', secret));
+    expect(readRevision(c.doc, draft.id)).not.toBeNull();
+    c.provider.destroy();
+  });
+
+  it('health and the internal patch endpoint; an API patch merges with unsaved live edits', async () => {
+    const http = svc.url.replace('ws://', 'http://');
+    expect((await fetch(`${http}/sync/health`)).status).toBe(200);
+    const post = (body: unknown, token?: string) => fetch(`${http}/internal/revisions/${draft.id}/patch`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    const rev = (await repo.getRevision(draft.id))!;
+    const [p1, p2] = [rev.content.parts[3].id, rev.content.parts[4].id];
+    const apiPatch = makePatch([{ op: 'setField', partId: p1, field: 'finishCode', value: 'F-API' }], 'AI optimize, accepted by Margono', 'ai');
+    expect((await post({ patch: apiPatch, userId: 'u_margono' })).status).toBe(401);
+    // An editor (Budi) with a live edit that has not been snapshotted to the row yet …
+    const c = await connectClient(svc.url, `revision:${draft.id}`, mintSyncToken('u_budi', secret));
+    revisionMaps(c.doc, draft.id).parts.get(p2)!.set('notes', 'live, unsaved');
+    await until(() => revisionMaps(svc.server.hocuspocus.documents.get(`revision:${draft.id}`)!, draft.id).parts.get(p2)!.get('notes') === 'live, unsaved');
+    // … then the API saves its change and tells sync through the binding.
+    const r = await post({ patch: apiPatch, userId: 'u_margono' }, mintInternalToken(secret));
+    expect(await r.json()).toEqual({ result: 'applied' });
+    await until(() => revisionMaps(c.doc, draft.id).parts.get(p1)!.get('finishCode') === 'F-API');
+    expect(revisionMaps(c.doc, draft.id).parts.get(p2)!.get('notes')).toBe('live, unsaved');
     c.provider.destroy();
   });
 });

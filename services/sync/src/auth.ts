@@ -6,6 +6,8 @@ import type { Repository } from '@bom/db';
 export interface SyncEnv {
   AUTH_PROVIDER?: string;
   SUPABASE_JWT_SECRET?: string;
+  /** Shared by the web app and the sync service: signs browser sync tokens and internal calls. */
+  SYNC_TOKEN_SECRET?: string;
 }
 
 export interface SyncContext {
@@ -50,6 +52,25 @@ export function verifyHs256(token: string, secret: string, nowSec = Math.floor(D
   return claims;
 }
 
+/** Token the web app gives a signed-in browser for the sync socket (10 minutes; providers re-fetch on reconnect). */
+export function mintSyncToken(userId: string, secret: string, ttlSec = 600): string {
+  return signHs256({ scope: 'sync', app_user_id: userId, exp: Math.floor(Date.now() / 1000) + ttlSec }, secret);
+}
+
+/** Service-to-service call from the web app to the sync service (internal endpoints). */
+export function mintInternalToken(secret: string, ttlSec = 60): string {
+  return signHs256({ scope: 'internal', exp: Math.floor(Date.now() / 1000) + ttlSec }, secret);
+}
+
+export function verifyInternalToken(header: string | undefined, secret: string | undefined): boolean {
+  if (!secret || !header?.startsWith('Bearer ')) return false;
+  try {
+    return verifyHs256(header.slice(7), secret).scope === 'internal';
+  } catch {
+    return false;
+  }
+}
+
 /** Test helper / dev tooling: mint an HS256 token. */
 export function signHs256(claims: Record<string, unknown>, secret: string): string {
   const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -64,7 +85,14 @@ export function signHs256(claims: Record<string, unknown>, secret: string): stri
  *   claim (added by a custom access token hook from app.members.auth_user_id), falling back to `sub`.
  */
 export function userIdFromToken(token: string, env: SyncEnv): string {
-  const provider = env.AUTH_PROVIDER ?? 'dev';
+  // With a shared secret the web app hands each signed-in browser a short-lived token (/api/sync-token).
+  const provider = env.AUTH_PROVIDER ?? (env.SYNC_TOKEN_SECRET ? 'app' : 'dev');
+  if (provider === 'app') {
+    if (!env.SYNC_TOKEN_SECRET) throw new SyncAuthError('SYNC_TOKEN_SECRET is not set');
+    const c = verifyHs256(token, env.SYNC_TOKEN_SECRET);
+    if (c.scope !== 'sync' || typeof c.app_user_id !== 'string') throw new SyncAuthError('Not a sync token');
+    return c.app_user_id;
+  }
   if (provider === 'dev') {
     if (!token.startsWith('dev:')) throw new SyncAuthError('Dev auth expects a "dev:<userId>" token');
     return token.slice(4);

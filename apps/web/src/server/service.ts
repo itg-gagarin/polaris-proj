@@ -8,6 +8,7 @@ import { applyPatch, classifyPatch, contentHash, DEFAULT_SETTINGS, makePatch, ne
 import { analyze } from '@bom/engine';
 import { auditFromPatch, createThread, laneNotifications, onContentChanged } from '@bom/workflow';
 import { HttpError, notFound } from './http';
+import { notifySyncPatch } from './sync';
 
 export interface RevisionBundle {
   revision: Revision;
@@ -56,6 +57,8 @@ export interface PatchResult {
   suggestions: Thread[];
   denied: { reason: string }[];
   summary: CheckResult['summary'] | null;
+  /** The ops actually applied (clients merge these into their live copy instead of resetting to the row). */
+  patch: Patch | null;
 }
 
 /**
@@ -88,7 +91,7 @@ export async function applyUserPatch(repo: Repository, user: User, ws: Workspace
     suggestions.push(thread);
   }
 
-  if (!cls.direct.length) return { revision, reviews: await repo.listReviews(revisionId), resetLanes: [], suggestions, denied: [], summary: null };
+  if (!cls.direct.length) return { revision, reviews: await repo.listReviews(revisionId), resetLanes: [], suggestions, denied: [], summary: null, patch: null };
 
   const direct = makePatch(cls.direct, patch.reason, patch.source, { authorId: user.id, ruleId: patch.ruleId, confidence: patch.confidence, label: patch.label });
   const { content, inverse } = applyPatch(revision.content, direct);
@@ -100,7 +103,8 @@ export async function applyUserPatch(repo: Repository, user: User, ws: Workspace
   }
   await repo.appendAudit([auditFromPatch({ workspaceId: ws.id, productId: product.id, revisionId, who: user.id, patch: direct, inverse })]);
   const check = await checksFor(repo, changed.revision, ws);
-  return { revision: changed.revision, reviews: changed.reviews, resetLanes: changed.reset, suggestions, denied: [], summary: check.summary };
+  await notifySyncPatch(revisionId, direct, user.id);
+  return { revision: changed.revision, reviews: changed.reviews, resetLanes: changed.reset, suggestions, denied: [], summary: check.summary, patch: direct };
 }
 
 export async function acceptSuggestion(repo: Repository, user: User, ws: Workspace, thread: Thread): Promise<PatchResult> {

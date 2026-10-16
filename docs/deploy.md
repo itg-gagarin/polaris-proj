@@ -1,5 +1,38 @@
 # Deploying a hosted preview
 
+## Vercel with services (web + sync + worker) — `vercel.json`
+
+One Vercel project, one domain, three services:
+
+| Service | What | Public? | Talks to |
+|---|---|---|---|
+| `web` | Next.js editor + API routes (`apps/web`) | yes, `/` (catch-all) | `sync` via binding `SYNC_URL` (internal patch endpoint); Postgres |
+| `sync` | Hocuspocus WebSocket server (`services/sync`, container) | yes, `/sync/*` — browsers open `wss://<domain>/sync/ws` | Postgres |
+| `worker` | job queue worker (`services/worker`, container) | no (internal) | Postgres only (jobs table) |
+
+How they connect:
+- **Browser → sync**: WebSocket on the same domain (`/sync/ws`). The web app derives this URL itself when
+  the `SYNC_URL` binding is present, and hands each signed-in browser a 10-minute token
+  (`/api/sync-token`, behind the site password) signed with `SYNC_TOKEN_SECRET`; the sync service refuses
+  anything else. Override with `SYNC_PUBLIC_URL` if the path changes.
+- **web → sync (binding `SYNC_URL`)**: when the API saves a change (AI accept, suggestion, waiver), it
+  posts the patch to `<SYNC_URL>/internal/revisions/:id/patch` (signed with `SYNC_TOKEN_SECRET`), and the
+  sync service applies it on top of the live document so unsaved live edits survive.
+- **web ↔ worker**: no HTTP; jobs go through `app.jobs` in Postgres (`QUEUE_BACKEND=postgres` is the
+  default whenever a database URL is set in the worker; set it on `web` too).
+
+Project environment variables (shared by all services): `DATABASE_URL` (or `POSTGRES_URL` from the
+Neon/Supabase integration), `SITE_PASSWORD`, `SYNC_TOKEN_SECRET` (a long random string),
+`QUEUE_BACKEND=postgres`. Do **not** set `SYNC_URL` — Vercel injects it into `web` from the binding.
+
+Verified in the build sandbox with the same images and wiring (Postgres 16, web + sync + worker started
+together): migrations applied once under a lock, two separate browsers co-edited live through `sync`,
+an AI accept in one browser reached the other through the binding call, the 30 s snapshot saved both
+the live edit and the AI change with the right author, and the worker ran a queued export.
+`vercel.json` passes the Vercel CLI's schema validator (v64.3.1). Not verified: an actual Vercel deploy
+(Vercel was unreachable from the sandbox) — in particular WebSocket support and `$PORT` for container
+services, and that the `/sync/(.*)` rewrite forwards WebSocket upgrades in production as `vercel dev` does.
+
 ## Free: Vercel (Hobby) + a free Postgres (Neon or Supabase)
 
 Vercel runs the app as serverless functions: no disk, nothing kept between requests. So the data must

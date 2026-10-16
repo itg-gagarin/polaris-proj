@@ -58,11 +58,19 @@ interface Provider {
   readOnly(): boolean;
 }
 
-function makeProvider(name: string, doc: Y.Doc, syncUrl: string | null, userId: string): Provider {
+/** A path like "/sync/ws" means the same origin (the deployment's rewrite sends it to the sync service). */
+function absoluteWsUrl(syncUrl: string): string {
+  if (!syncUrl.startsWith('/')) return syncUrl;
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${syncUrl}`;
+}
+
+function makeProvider(name: string, doc: Y.Doc, syncUrl: string | null, _userId: string): Provider {
   if (syncUrl) {
     let resolve!: () => void;
     const whenSynced = new Promise<void>((r) => (resolve = r));
-    const p = new HocuspocusProvider({ url: syncUrl, name, document: doc, token: `dev:${userId}`, onSynced: ({ state }) => state && resolve() });
+    // Fetched on every (re)connect: short-lived, signed by the web app for the signed-in user.
+    const token = async () => (await api<{ token: string }>('/api/sync-token')).token;
+    const p = new HocuspocusProvider({ url: absoluteWsUrl(syncUrl), name, document: doc, token, onSynced: ({ state }) => state && resolve() });
     return { awareness: p.awareness!, destroy: () => p.destroy(), whenSynced, readOnly: () => p.authorizedScope === 'readonly' };
   }
   const p = new ChannelProvider(doc, broadcastChannel(`bom:${name}`));
@@ -114,12 +122,14 @@ export class RevisionLive extends Emitter {
     this.provider = makeProvider(name, this.doc, this.ws.syncUrl, this.ws.user.id);
     await this.provider.whenSynced;
     const meta = revisionMaps(this.doc, this.id).meta;
-    if (!meta.get('initialised')) initRevision(this.doc, this.id, this.bundle.revision.content, 'server');
+    // The sync server initialises documents itself; locally the first tab does.
+    if (!meta.get('initialised') && !this.ws.syncUrl) initRevision(this.doc, this.id, this.bundle.revision.content, 'server');
     else if (!this.ws.syncUrl && meta.get('savedHash') !== contentHash(this.bundle.revision.content)) {
       // The row moved on while this browser was away (another user, the AI, a restore): reconcile field by field.
       syncDocTo(this.doc, this.id, this.bundle.revision.content, 'server');
     }
-    this.doc.transact(() => meta.set('savedHash', contentHash(this.bundle!.revision.content)), 'server');
+    // With the sync server, the server owns this bookkeeping (and a write here would count as an edit).
+    if (!this.ws.syncUrl) this.doc.transact(() => meta.set('savedHash', contentHash(this.bundle!.revision.content)), 'server');
     const pending = this.ws.syncUrl ? [] : readPending(this.id, this.ws.user.id);
     if (pending.length) {
       // Edits made offline: start from the server row, replay them, and send them again.
@@ -251,15 +261,33 @@ export class RevisionLive extends Emitter {
     return { applied: cls.direct.length, suggested: suggestedOps.length, denied: [] };
   }
 
-  /** Apply content the server already saved (AI accept, suggestion accept) without re-posting it. */
-  applyServerContent(content: RevisionContent) {
+  /**
+   * The API saved a change (AI accept, suggestion accept, waiver). With the sync server, that service
+   * applies the API's patch to the shared document, so do nothing here. Locally, merge the patch into this
+   * copy; resetting to the row would drop other people's edits that are live but not saved yet.
+   */
+  applyServerChange(content: RevisionContent, patch?: Patch | null) {
+    if (this.ws.syncUrl) return;
+    if (patch?.ops.length) {
+      try {
+        applyPatchToDoc(this.doc, this.id, patch, 'server');
+        return;
+      } catch {
+        /* this copy diverged (e.g. part removed): fall back to the row */
+      }
+    }
+    this.resetToRow(content);
+  }
+
+  /** Bring this copy to the saved row (after the server refused an edit). */
+  resetToRow(content: RevisionContent) {
     syncDocTo(this.doc, this.id, content, 'server');
     this.doc.transact(() => revisionMaps(this.doc, this.id).meta.set('savedHash', contentHash(content)), 'server');
   }
 
   async refresh(resetContent = false) {
     this.bundle = await api<RevisionBundle>(`/api/revisions/${this.id}`);
-    if (resetContent) this.applyServerContent(this.bundle.revision.content);
+    if (resetContent && !this.ws.syncUrl) this.resetToRow(this.bundle.revision.content);
     this.emit();
   }
 

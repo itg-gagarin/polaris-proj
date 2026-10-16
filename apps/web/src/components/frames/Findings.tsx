@@ -55,7 +55,7 @@ export function FindingCard({ f, rev, revisionId, readOnly }: { f: Finding; rev:
   const waive = async () => {
     try {
       const b = await revisionAction(revisionId, { action: 'waive', findingKey: f.key, reason, kind });
-      rev.applyServerContent(b.revision.content);
+      rev.applyServerChange(b.revision.content);
       rev.setBundle(b);
       setWaiving(false);
     } catch (e) {
@@ -64,7 +64,7 @@ export function FindingCard({ f, rev, revisionId, readOnly }: { f: Finding; rev:
   };
   const unwaive = async () => {
     const b = await revisionAction(revisionId, { action: 'unwaive', findingKey: f.key });
-    rev.applyServerContent(b.revision.content);
+    rev.applyServerChange(b.revision.content);
     rev.setBundle(b);
   };
   return (

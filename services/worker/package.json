@@ -5,8 +5,12 @@
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "start": "tsx src/main.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
   "dependencies": {
     "@bom/ai": "workspace:*",
     "@bom/bom-io": "workspace:*",
@@ -16,7 +20,11 @@
     "@bom/engine": "workspace:*",
     "@bom/exporters": "workspace:*",
     "@bom/integrations": "workspace:*",
-    "@bom/workflow": "workspace:*"
+    "@bom/workflow": "workspace:*",
+    "tsx": "^4.20.0"
   },
-  "devDependencies": { "@bom/fixtures": "workspace:*", "@electric-sql/pglite": "^0.3.11" }
+  "devDependencies": {
+    "@bom/fixtures": "workspace:*",
+    "@electric-sql/pglite": "^0.3.11"
+  }
 }

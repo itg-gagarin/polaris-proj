@@ -57,6 +57,7 @@ export interface PatchResult {
   resetLanes: string[];
   suggestions: Thread[];
   summary: CheckResult['summary'] | null;
+  patch: Patch | null;
 }
 
 export const postPatch = (revisionId: string, patch: Patch) => api<PatchResult>(`/api/revisions/${revisionId}/patch`, { method: 'POST', json: { patch } });

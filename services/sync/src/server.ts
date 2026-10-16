@@ -3,7 +3,7 @@ import { applyPatchToDoc, boardItems, revisionMaps, syncDocTo, Y } from '@bom/co
 import type { Repository } from '@bom/db';
 import type { BoardItem, Patch } from '@bom/domain';
 import { contentHash } from '@bom/domain';
-import { authorize, parseDocName, type SyncContext, type SyncEnv } from './auth';
+import { authorize, parseDocName, verifyInternalToken, type SyncContext, type SyncEnv } from './auth';
 import { snapshotRevision, type SnapshotResult } from './snapshot';
 
 export interface SyncServerOptions {
@@ -25,6 +25,11 @@ export interface SyncServer {
   snapshotAll(): Promise<SnapshotResult[]>;
   /** Apply a patch to a revision as a server-side edit (REST/AI accept while the document is live). */
   applyServerPatch(revisionId: string, patch: Patch, userId: string): Promise<void>;
+  /**
+   * A patch the web API already saved to the revision row: apply it on top of the live document (if open)
+   * so unsaved live edits and the API change both survive; the next snapshot writes the combination.
+   */
+  applyApiPatch(revisionId: string, patch: Patch, userId: string): Promise<'applied' | 'not-open' | 'skipped'>;
   stop(): Promise<void>;
 }
 
@@ -96,6 +101,49 @@ export async function startSyncServer(opts: SyncServerOptions): Promise<SyncServ
       }
     },
 
+    /**
+     * HTTP on the same port: GET …/health, and POST …/internal/revisions/:id/patch from the web app
+     * (signed with SYNC_TOKEN_SECRET). Matched by suffix so a public path prefix (/sync) does not matter.
+     */
+    async onRequest({ request, response }) {
+      const url = new URL(request.url ?? '/', 'http://sync.local');
+      const reply = (status: number, body: unknown) => {
+        response.writeHead(status, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(body));
+      };
+      if (request.method === 'GET' && url.pathname.endsWith('/health')) {
+        reply(200, { ok: true, documents: server.hocuspocus.getDocumentsCount(), connections: server.hocuspocus.getConnectionsCount() });
+        throw null; // handled: stop the default response
+      }
+      const m = /\/internal\/revisions\/([A-Za-z0-9_.-]{1,128})\/patch$/.exec(url.pathname);
+      if (request.method === 'POST' && m) {
+        if (!verifyInternalToken(request.headers.authorization, env.SYNC_TOKEN_SECRET)) {
+          reply(401, { error: 'unauthorized' });
+          throw null;
+        }
+        let body: { patch?: Patch; userId?: string };
+        try {
+          const chunks: Buffer[] = [];
+          let size = 0;
+          for await (const c of request) {
+            size += (c as Buffer).length;
+            if (size > 2_000_000) throw new Error('too large');
+            chunks.push(c as Buffer);
+          }
+          body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        } catch {
+          reply(400, { error: 'bad body' });
+          throw null;
+        }
+        if (!body.patch?.ops || typeof body.userId !== 'string') {
+          reply(400, { error: 'patch and userId required' });
+          throw null;
+        }
+        reply(200, { result: await applyApiPatch(m[1], body.patch, body.userId) });
+        throw null;
+      }
+    },
+
     async beforeUnloadDocument({ documentName, document }) {
       const ref = parseDocName(documentName);
       if (ref.kind === 'revision') await snapshotOne(documentName, document);
@@ -155,6 +203,25 @@ export async function startSyncServer(opts: SyncServerOptions): Promise<SyncServ
     }
   }
 
+  async function applyApiPatch(revisionId: string, patch: Patch, userId: string): Promise<'applied' | 'not-open' | 'skipped'> {
+    const name = `revision:${revisionId}`;
+    const document = server.hocuspocus.documents.get(name);
+    // Not open: the row already has the change; the next load reconciles from the row (savedHash differs).
+    if (!document) return 'not-open';
+    try {
+      applyPatchToDoc(document, revisionId, patch, { userId, source: patch.source });
+    } catch (e) {
+      // e.g. the part was removed live in the meantime: the live state wins, the snapshot records it.
+      log('api-patch-skipped', { revisionId, error: (e as Error).message });
+      return 'skipped';
+    }
+    let s = editors.get(name);
+    if (!s) editors.set(name, (s = new Set()));
+    s.add(userId);
+    log('api-patch', { revisionId, ops: patch.ops.length });
+    return 'applied';
+  }
+
   await server.listen();
   const ms = opts.snapshotMs ?? 30_000;
   const timer = ms > 0 ? setInterval(() => void snapshotAll(), ms) : null;
@@ -165,6 +232,7 @@ export async function startSyncServer(opts: SyncServerOptions): Promise<SyncServ
     url: server.webSocketURL,
     snapshotAll,
     applyServerPatch,
+    applyApiPatch,
     async stop() {
       if (timer) clearInterval(timer);
       await snapshotAll();

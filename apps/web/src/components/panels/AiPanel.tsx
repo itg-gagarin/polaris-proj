@@ -61,7 +61,7 @@ export function AiPanel() {
     if (!rev || !s) return;
     try {
       const r = await api<PatchResult & { rejected: { id: string; why: string }[]; applied: number }>('/api/ai/accept', { method: 'POST', json: { revisionId: rev.id, suggestion: s, acceptedIds: ids } });
-      if (r.revision) rev.applyServerContent(r.revision.content as RevisionContent);
+      if (r.revision) rev.applyServerChange(r.revision.content as RevisionContent, r.patch);
       await rev.refresh();
       useUi.getState().toast(`AI optimize, accepted by ${me.name}: ${r.applied} change(s)${r.rejected.length ? `, ${r.rejected.length} not applied` : ''}`, 'success');
       useUi.setState({ ai: { running: false, suggestion: null, accepted: [], error: null } });
