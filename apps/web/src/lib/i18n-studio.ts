@@ -221,6 +221,7 @@ export const studioEn = {
   'detail.freeCorner': 'Free corner (nothing else here)',
   'detail.oneShown': 'one drawn',
   'detail.perAsm': 'Qty per assembly',
+  'detail.tooBig': 'The file is larger than 3 MB. In AutoCAD save only this part’s drawing (or PURGE unused blocks) and try again.',
   'detail.stretched': 'Cut size from the BOM. The 3D model draws it {mm} mm longer at each end to close the front frame (see Checks).',
 } as const;
 
@@ -448,5 +449,6 @@ export const studioId: Record<StudioKey, string> = {
   'detail.freeCorner': 'Sudut bebas (tidak ada part lain)',
   'detail.oneShown': 'satu digambar',
   'detail.perAsm': 'Jumlah per rakitan',
+  'detail.tooBig': 'File lebih besar dari 3 MB. Di AutoCAD simpan gambar part ini saja (atau PURGE block yang tidak dipakai) lalu coba lagi.',
   'detail.stretched': 'Ukuran potong dari BOM. Model 3D menggambarnya {mm} mm lebih panjang di tiap ujung untuk menutup rangka depan (lihat Pemeriksaan).',
 };

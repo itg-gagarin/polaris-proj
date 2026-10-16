@@ -2,7 +2,8 @@ import { parseDxf, DxfError } from '@bom/bom-io/dxf';
 import { route, body, HttpError } from '@/server/http';
 import { requireSession } from '@/server/auth';
 
-const MAX = 10 * 1024 * 1024;
+/** Hosted functions accept ~4.5 MB bodies; base64 adds a third, so 3 MB of file. */
+const MAX = 3 * 1024 * 1024;
 const IMAGES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
 /**
@@ -17,7 +18,7 @@ export const POST = route(async (req) => {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (!b.data) throw new HttpError(400, 'No file data');
   const bytes = Uint8Array.from(Buffer.from(b.data, 'base64'));
-  if (bytes.length > MAX) throw new HttpError(413, 'The file is larger than 10 MB');
+  if (bytes.length > MAX) throw new HttpError(413, 'The file is larger than 3 MB. Save only the part’s drawing (or purge unused blocks) and try again.');
   if (ext === 'dwg') throw new HttpError(400, 'DWG cannot be read in the browser. In AutoCAD use Save As → DXF, then upload the .dxf.');
   let kind: 'dxf' | 'image';
   let mime: string;

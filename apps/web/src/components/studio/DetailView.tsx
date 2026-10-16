@@ -198,6 +198,11 @@ function DrawingCard({ rev, part }: { rev: RevisionLive; part: Part }) {
   const [busy, setBusy] = useState(false);
   const sameCode = rev.content!.parts.filter((p) => p.id !== part.id && ((part.hardwareSku && p.hardwareSku === part.hardwareSku) || (part.stdCode && p.stdCode === part.stdCode && p.originalName === part.originalName)));
   const attach = async (file: File) => {
+    if (file.size > 3 * 1024 * 1024) {
+      useUi.getState().toast(t('detail.tooBig'), 'error');
+      if (input.current) input.current.value = '';
+      return;
+    }
     setBusy(true);
     try {
       const data = await new Promise<string>((res, rej) => {
