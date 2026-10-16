@@ -135,8 +135,23 @@ export class SqlRepository implements Repository {
     });
   }
 
-  getWorkspace(id: string) { return this.one<Workspace>(T.workspaces, 'id = $1', [id]).then((w) => (w ? { ...w, memberIds: [] } : null)); }
-  async listWorkspaces() { return (await this.select<Workspace>(T.workspaces)).map((w) => ({ ...w, memberIds: [] })); }
+  /** Members live in app.members; the domain's Workspace carries their ids. */
+  private async memberIds(workspaceIds: string[]): Promise<Map<string, string[]>> {
+    const m = new Map<string, string[]>(workspaceIds.map((id) => [id, []]));
+    if (!workspaceIds.length) return m;
+    const r = await this.run((q) => q.query<{ id: string; workspace_id: string }>('select id, workspace_id from app.members where workspace_id = any($1) order by id', [workspaceIds]));
+    for (const row of r.rows) m.get(row.workspace_id)?.push(row.id);
+    return m;
+  }
+  async getWorkspace(id: string) {
+    const w = await this.one<Workspace>(T.workspaces, 'id = $1', [id]);
+    return w ? { ...w, memberIds: (await this.memberIds([id])).get(id) ?? [] } : null;
+  }
+  async listWorkspaces() {
+    const ws = await this.select<Workspace>(T.workspaces);
+    const ids = await this.memberIds(ws.map((w) => w.id));
+    return ws.map((w) => ({ ...w, memberIds: ids.get(w.id) ?? [] }));
+  }
   upsertWorkspace(w: Workspace) { return this.upsert(T.workspaces, [w as unknown as Record<string, unknown>]); }
 
   async listUsers(workspaceId: string) { return (await this.select<User & { workspaceId: string }>(T.members, 'workspace_id = $1', [workspaceId], 'order by name')).map(({ workspaceId: _w, ...u }) => u as User); }
@@ -264,14 +279,21 @@ export class SqlRepository implements Repository {
     );
   }
 
-  /** File bytes belong in Supabase Storage; this adapter stores the index row (bytes inline only for small files in dev). */
+  /**
+   * Files up to 20 MB are stored in app.files.bytes (exports, previews). Large media belongs in
+   * Supabase Storage; wire that adapter before accepting recordings or photo uploads in production.
+   */
   async putFile(name: string, bytes: Uint8Array, mime: string): Promise<StoredFile> {
+    if (bytes.byteLength > 20 * 1024 * 1024) throw new Error('Files over 20 MB need an object store (Supabase Storage)');
     const uri = `db://${newId('file')}/${encodeURIComponent(name)}`;
-    await this.run((q) => q.query('insert into app.files (uri, name, mime, size) values ($1, $2, $3, $4)', [uri, name, mime, bytes.byteLength]));
+    await this.run((q) => q.query('insert into app.files (uri, name, mime, size, bytes) values ($1, $2, $3, $4, $5)', [uri, name, mime, bytes.byteLength, Buffer.from(bytes)]));
     return { uri, name, mime, size: bytes.byteLength };
   }
-  async getFile(_uri: string): Promise<null> {
-    return null;
+  async getFile(uri: string): Promise<{ file: StoredFile; bytes: Uint8Array } | null> {
+    const r = await this.run((q) => q.query<Record<string, unknown>>('select uri, name, mime, size, bytes from app.files where uri = $1', [uri]));
+    const row = r.rows[0];
+    if (!row || !row.bytes) return null;
+    return { file: { uri: String(row.uri), name: String(row.name), mime: String(row.mime), size: Number(row.size) }, bytes: new Uint8Array(row.bytes as Uint8Array) };
   }
 
   async exportAll(workspaceId: string) {
@@ -292,9 +314,10 @@ export class SqlRepository implements Repository {
 }
 
 /** node-postgres executor (DATABASE_URL — Supabase connection string in production). */
-export async function pgExecutor(connectionString: string): Promise<SqlExecutor> {
+export async function pgExecutor(connectionString: string, opts: { ssl?: 'verify' | 'no-verify' | 'off'; max?: number } = {}): Promise<SqlExecutor> {
   const pg = await import('pg');
-  const pool = new pg.default.Pool({ connectionString, max: 10 });
+  const ssl = opts.ssl === 'no-verify' ? { rejectUnauthorized: false } : opts.ssl === 'verify' ? { rejectUnauthorized: true } : undefined;
+  const pool = new pg.default.Pool({ connectionString, max: opts.max ?? 5, ...(ssl ? { ssl } : {}) });
   const wrap = (c: { query: (s: string, p?: unknown[]) => Promise<{ rows: unknown[] }> }): SqlExecutor => ({
     query: async (s, p) => (await c.query(s, p)) as { rows: never[] },
     transaction: async (fn) => fn(wrap(c)),

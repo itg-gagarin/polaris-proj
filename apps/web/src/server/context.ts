@@ -10,7 +10,17 @@ import { createAiProvider, type AiProvider } from '@bom/ai';
 import type { JobQueue } from '@bom/worker';
 import { createDeps, createQueue, Worker } from '@bom/worker';
 
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 const ENV = process.env as Record<string, string | undefined>;
+/** Vercel (and other serverless hosts): read-only code directory, no long-running loops. */
+const SERVERLESS = !!ENV.VERCEL;
+
+function migrationsDir(): string | undefined {
+  const candidates = [ENV.BOM_MIGRATIONS_DIR, resolve(process.cwd(), 'supabase/migrations'), resolve(process.cwd(), '../../supabase/migrations')].filter((c): c is string => !!c);
+  return candidates.find((c) => existsSync(c));
+}
 
 interface Ctx {
   repo: Promise<Repository>;
@@ -23,7 +33,16 @@ const g = globalThis as unknown as { __bom?: Ctx };
 
 async function initRepo(): Promise<Repository> {
   const env = process.env;
-  const repo = await createRepository({ DATA_BACKEND: env.DATA_BACKEND, DATA_FILE: env.DATA_FILE || env.BOM_DATA_FILE, DATABASE_URL: env.DATABASE_URL });
+  const repo = await createRepository({
+    // auto: PostgreSQL when a database URL is present (Vercel's Neon/Supabase integrations inject one), else the file store.
+    DATA_BACKEND: env.DATA_BACKEND ?? 'auto',
+    // Serverless file systems are read-only except /tmp (and /tmp does not survive): use a database there.
+    DATA_FILE: env.DATA_FILE || (SERVERLESS ? '/tmp/bom-studio-db.json' : env.BOM_DATA_FILE),
+    DATABASE_URL: env.DATABASE_URL || env.POSTGRES_URL,
+    DATABASE_SSL: env.DATABASE_SSL,
+    // Fresh databases (Supabase, Neon) are migrated on first start; set AUTO_MIGRATE=off to manage it yourself.
+    MIGRATIONS_DIR: env.AUTO_MIGRATE === 'off' ? undefined : migrationsDir(),
+  });
   if ((await repo.listWorkspaces()).length === 0) {
     const { seedDemo } = await import('@bom/db/seed');
     await seedDemo(repo);
@@ -36,8 +55,8 @@ function ctx(): Ctx {
     const repo = initRepo();
     const queue = createQueue(ENV);
     g.__bom = { repo, ai: createAiProvider(ENV), queue, worker: null };
-    // With the in-memory queue the worker must live in this process.
-    if ((process.env.QUEUE_BACKEND ?? 'memory') === 'memory') {
+    // With the in-memory queue the worker must live in this process (not on serverless: no background loops).
+    if ((process.env.QUEUE_BACKEND ?? 'memory') === 'memory' && !SERVERLESS) {
       void Promise.all([repo, queue]).then(([r, q]) => {
         const w = new Worker({ queue: q, deps: createDeps(ENV, r) });
         w.start(500);

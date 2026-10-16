@@ -3,6 +3,9 @@ import { route, body, HttpError } from '@/server/http';
 import { getSession, USER_COOKIE } from '@/server/auth';
 import { getRepo } from '@/server/context';
 
+// The first request on a fresh database migrates and seeds the demo (serverless cold start).
+export const maxDuration = 60;
+
 /** Dev auth: list users for the picker; POST signs in as one (AUTH_PROVIDER=dev only). */
 export const GET = route(async (req) => {
   const session = await getSession(req);

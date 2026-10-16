@@ -1,6 +1,7 @@
 # Furniture BOM Studio — web app (editor + API + in-process job worker) in one container.
-# Data lives in a JSON file on a mounted volume (/data). For multi-instance or production use,
-# switch to PostgreSQL (DATA_BACKEND=supabase) — see docs/deploy.md.
+# Storage: with DATABASE_URL (free Neon / Supabase Postgres) data lives in the database and the schema is
+# migrated on first start; without it, data is a JSON file in /data (mount a volume, or it resets).
+# See docs/deploy.md.
 ARG BASE_IMAGE=node:22-slim
 FROM ${BASE_IMAGE}
 
@@ -21,7 +22,7 @@ RUN pnpm build && rm -rf apps/web/.next/cache && chmod -R a+rX /app
 
 ENV NODE_ENV=production \
     PORT=3000 \
-    DATA_BACKEND=file \
+    DATA_BACKEND=auto \
     DATA_FILE=/data/db.json \
     AUTH_PROVIDER=dev \
     AI_PROVIDER=mock

@@ -1,6 +1,40 @@
 # Deploying a hosted preview
 
-The repo ships a `Dockerfile` that runs the whole web app (editor, API routes, in-process job worker)
+## Free: Vercel (Hobby) + a free Postgres (Neon or Supabase)
+
+Vercel runs the app as serverless functions: no disk, nothing kept between requests. So the data must
+live in Postgres. The app finds the database URL (`DATABASE_URL` or `POSTGRES_URL`), creates its tables on
+first start (`supabase/migrations`, applied once) and seeds the Hollan House demo.
+
+1. **Import** — vercel.com → *Add New → Project* → import this GitHub repository.
+   - *Root Directory*: `apps/web` (Framework preset: Next.js; keep the default install/build commands —
+     pnpm is detected from the lockfile at the repo root).
+   - Branch: Vercel deploys the default branch to production and every other branch as a *preview*
+     URL; merge `claude/cool-feynman-nbcwvy` or use its preview deployment.
+2. **Database** — in the project, *Storage → Create Database → Neon* (free tier) and connect it to the
+   project. That injects the connection string as an environment variable. Supabase works too: copy its
+   connection string into `DATABASE_URL` (if TLS fails with a certificate error, add `DATABASE_SSL=no-verify`).
+3. **Password** — *Settings → Environment Variables*: `SITE_PASSWORD` = a long shared password.
+4. **Redeploy**, open the URL, enter the password, pick a demo user. The very first request takes
+   longer (migrations + seed).
+
+What changes on Vercel (all handled in code, verified in a simulated run — `VERCEL=1`, `POSTGRES_URL`,
+empty database: migrations, seed, sign-in, editor, PDF/XLSX/STEP export and AI optimize all worked):
+- No in-process background worker (serverless); everything the UI needs runs inside requests.
+- Without a database the app still starts but keeps data in `/tmp`, which resets often — add the database.
+- Live collaboration works between tabs of one browser only (no websocket sync server on Vercel).
+
+**Check before relying on it** (could not be verified from the build environment — vercel.com and
+render.com were not reachable):
+- Vercel's Hobby plan terms restrict it to personal, non-commercial use as far as I know; a company tool
+  may need the Pro plan. Read the current terms.
+- The exact environment variable name the Neon/Supabase integration injects (the app accepts
+  `DATABASE_URL` and `POSTGRES_URL`) and the free-tier limits (storage, compute hours, idle pausing).
+- The function duration limit on Hobby; the entry routes ask for 60 s for the cold-start seed.
+
+## Paid: a Docker host with a disk
+
+Alternatively, the repo ships a `Dockerfile` that runs the whole web app (editor, API routes, in-process job worker)
 in one container. Data is a JSON file on a mounted volume, so the host **must** provide a persistent
 disk/volume at `/data`, otherwise every redeploy starts from the demo seed again.
 

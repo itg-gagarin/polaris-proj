@@ -3,25 +3,30 @@ import { readFileSync, readdirSync, mkdtempSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { PGlite } from '@electric-sql/pglite';
-import { MemoryRepository, FileRepository, SqlRepository, type SqlExecutor, type Repository } from '../src';
+import { MemoryRepository, FileRepository, SqlRepository, runMigrations, type SqlExecutor, type Repository } from '../src';
 import { seedDemo, DEMO_WORKSPACE_ID } from '../src/seed';
 
 const MIGRATIONS = resolve(__dirname, '../../../supabase/migrations');
 
 function pgliteExecutor(db: PGlite): SqlExecutor {
-  const wrap = (q: { query: PGlite['query'] }): SqlExecutor => ({
-    query: async (sql, params) => ({ rows: (await q.query(sql, params as unknown[])).rows as never[] }),
+  type Q = { query: PGlite['query']; exec: PGlite['exec'] };
+  const run = async (q: Q, sql: string, params?: unknown[]) => (params?.length ? (await q.query(sql, params)).rows : ((await q.exec(sql)).at(-1)?.rows ?? []));
+  const wrap = (q: Q): SqlExecutor => ({
+    query: async (sql, params) => ({ rows: (await run(q, sql, params as unknown[])) as never[] }),
     transaction: async (fn) => fn(wrap(q)),
   });
   return {
-    query: async (sql, params) => ({ rows: (await db.query(sql, params as unknown[])).rows as never[] }),
-    transaction: (fn) => db.transaction((tx) => fn(wrap(tx as unknown as { query: PGlite['query'] }))),
+    query: async (sql, params) => ({ rows: (await run(db, sql, params as unknown[])) as never[] }),
+    transaction: (fn) => db.transaction((tx) => fn(wrap(tx as unknown as Q))),
   };
 }
 
 async function contractChecks(repo: Repository) {
   const ws = await repo.getWorkspace(DEMO_WORKSPACE_ID);
   expect(ws?.name).toBe('PT Integra Indocabinet');
+  // Sign-in and the sync server rely on workspace membership.
+  expect(ws?.memberIds).toContain('u_margono');
+  expect((await repo.listWorkspaces())[0].memberIds.length).toBe(14);
   const products = await repo.listProducts(DEMO_WORKSPACE_ID);
   expect(products.map((p) => p.code)).toContain('HH-CC-DRAWER-DRESSER');
   expect(products.find((p) => p.code === 'HH-CC-QUEEN-PANEL-BED')?.componentProductIds).toHaveLength(3);
@@ -77,6 +82,21 @@ describe('in-memory and file repositories', () => {
     expect(b.isEmpty()).toBe(false);
     expect((await b.listProducts(DEMO_WORKSPACE_ID)).length).toBeGreaterThan(10);
   });
+});
+
+describe('migrations on an empty PostgreSQL (Neon / plain Postgres, no Supabase auth schema)', () => {
+  it('applies every migration once, adds the auth.uid() stand-in, and stores file bytes', async () => {
+    const db = new PGlite();
+    const exec = pgliteExecutor(db);
+    const first = await runMigrations(exec, MIGRATIONS, () => {});
+    expect(first.length).toBe(readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).length);
+    expect(await runMigrations(exec, MIGRATIONS, () => {})).toEqual([]);
+    expect((await db.query<{ u: string | null }>('select auth.uid()::text as u')).rows[0].u).toBeNull();
+    const repo = new SqlRepository(exec);
+    await seedDemo(repo);
+    const f = await repo.putFile('sheet.pdf', new Uint8Array([37, 80, 68, 70]), 'application/pdf');
+    expect(Array.from((await repo.getFile(f.uri))!.bytes)).toEqual([37, 80, 68, 70]);
+  }, 120_000);
 });
 
 describe('PostgreSQL schema + row-level security (supabase/migrations on PGlite)', () => {

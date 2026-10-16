@@ -1,6 +1,9 @@
 import { route } from '@/server/http';
 import { requireSession } from '@/server/auth';
 
+// The first request on a fresh database migrates and seeds the demo (serverless cold start).
+export const maxDuration = 60;
+
 /** Everything the editor shell needs on load (content is fetched per revision). */
 export const GET = route(async (req) => {
   const { user, workspace, repo } = await requireSession(req);

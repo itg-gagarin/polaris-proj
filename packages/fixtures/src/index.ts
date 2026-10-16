@@ -13,8 +13,16 @@ import { importDictionary, applyOverlay, DictionaryIndex, type Overlay } from '@
 import { importFile, type ImportedProduct } from '@bom/bom-io';
 import { prepareContent, composeSet } from '@bom/engine';
 
-/** BOM_FIXTURES_DIR overrides the location when this file is bundled (Next.js server build). */
-export const FIXTURES_DIR = process.env.BOM_FIXTURES_DIR || resolve(dirname(fileURLToPath(import.meta.url)), '../../../fixtures');
+/**
+ * Where the fixture files are. Bundled and serverless builds move code away from the repo layout
+ * (Next.js server chunks, Vercel functions under /var/task), so try the known locations in order.
+ */
+function findFixturesDir(): string {
+  const candidates = [process.env.BOM_FIXTURES_DIR, resolve(dirname(fileURLToPath(import.meta.url)), '../../../fixtures'), resolve(process.cwd(), 'fixtures'), resolve(process.cwd(), '../../fixtures')].filter((c): c is string => !!c);
+  return candidates.find((c) => existsSync(resolve(c, 'dictionary/ref.xlsx'))) ?? candidates[0];
+}
+
+export const FIXTURES_DIR = findFixturesDir();
 export const fixturePath = (...p: string[]) => resolve(FIXTURES_DIR, ...p);
 
 let dictCache: Promise<{ entries: StdPart[]; index: DictionaryIndex }> | null = null;

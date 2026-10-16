@@ -31,8 +31,9 @@ pnpm loadtest                      # 25 Hocuspocus clients, propagation p50/p95
 
 ## Hosted preview
 
-`Dockerfile` + `render.yaml` run the app in the cloud behind a shared password (`SITE_PASSWORD`) with
-data on a persistent disk. Steps for Render, Railway and other Docker hosts: [`docs/deploy.md`](docs/deploy.md).
+Free option: Vercel + a free Neon/Supabase Postgres, behind a shared password (`SITE_PASSWORD`); the app
+migrates and seeds the database itself. Paid option: `Dockerfile` + `render.yaml` with a persistent disk.
+Steps for both: [`docs/deploy.md`](docs/deploy.md).
 
 ## Running with real services
 
