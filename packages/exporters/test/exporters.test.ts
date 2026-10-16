@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { PDFDocument } from 'pdf-lib';
 import { WebIO } from '@gltf-transform/core';
 import DxfParser from 'dxf-parser';
+import { parseDxf } from '@bom/bom-io/dxf';
 import type { RevisionContent } from '@bom/domain';
 import { analyze, type Layout } from '@bom/engine';
 import { loadHollan } from '@bom/fixtures';
@@ -67,6 +68,16 @@ describe('DXF', () => {
     const layers = new Set(parsed.entities.map((e) => e.layer));
     expect([...layers].sort()).toEqual(['DIMENSIONS', 'FRONT', 'SIDE', 'TEXT', 'TOP']);
     expect(parsed.entities.filter((e) => e.type === 'LINE').length).toBeGreaterThan(300);
+  });
+
+  it('our DXF reader (detail-drawing upload) agrees with dxf-parser on the same file', () => {
+    const dxf = dxfExport(content, layout, { title: 'Night Stand R5' });
+    const ref = new DxfParser().parseSync(dxf)!;
+    const ours = parseDxf(dxf);
+    const count = (t: string) => ref.entities.filter((e) => e.type === t).length;
+    expect(ours.shapes.filter((s) => s.kind === 'line').length).toBe(count('LINE'));
+    expect(ours.shapes.filter((s) => s.kind === 'text').length).toBe(count('TEXT') + count('MTEXT'));
+    expect(ours.layers.sort()).toEqual(['DIMENSIONS', 'FRONT', 'SIDE', 'TEXT', 'TOP']);
   });
 });
 

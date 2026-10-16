@@ -14,7 +14,7 @@ import { projectors, pickers, cameraSetters, zoomers } from '@/lib/registry';
 import { usePrefs } from '@/lib/prefs';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { RevisionLive } from '@/lib/live';
-import { useEditor } from '@/lib/editor';
+import { useEditor, usePresenceVersion } from '@/lib/editor';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const DEG = Math.PI / 180;
@@ -200,6 +200,13 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
   const fasteners = focus && fastenersProp?.length ? fastenersProp : null;
   const showFasteners = !!fasteners;
   const { live } = useEditor();
+  // Other people's selections on this product, outlined in their colour.
+  const pv = usePresenceVersion();
+  const peerSel = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of live.peers()) if (p.selRevisionId === revisionId) for (const id of p.selection ?? []) m.set(id, p.user.color);
+    return m;
+  }, [pv, live, revisionId]); // eslint-disable-line react-hooks/exhaustive-deps
   const parts = useMemo(() => new Map(content.parts.map((x) => [x.id, x])), [content]);
   const selected = new Set(ui.selection.revisionId === revisionId ? ui.selection.partIds : []);
   const hidden = new Set(ui.hidden[revisionId] ?? []);
@@ -213,6 +220,13 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
   const clashing = useMemo(() => new Set(analysis.clashes.flatMap((c) => [c.partA, c.partB])), [analysis]);
   const aiChanges = ui.ai.suggestion?.revisionId === revisionId ? ui.ai.suggestion.changes.filter((c) => ui.ai.accepted.includes(c.id)) : [];
   const aiChanged = useMemo(() => new Set(aiChanges.flatMap((c) => c.patch.ops.map((o) => ('partId' in o ? o.partId : '')))), [aiChanges]);
+  // Parts with open team notes (threads anchored to the part).
+  const threads = rev.bundle?.threads;
+  const noteOn = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const th of threads ?? []) if (th.status === 'open' && th.anchor.kind === 'part') m.set(th.anchor.partId, (m.get(th.anchor.partId) ?? 0) + 1);
+    return [...m.entries()];
+  }, [threads]);
   const tipFor = (key: string) => {
     const inst = analysis.layout.instances.find((i) => i.key === key);
     const pt = inst ? parts.get(inst.partId) : null;
@@ -443,7 +457,6 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
     const ids = e.altKey && inst.assemblyId ? [...new Set(analysis.layout.instances.filter((i) => i.assemblyId === inst.assemblyId).map((i) => i.partId))] : [inst.partId];
     useUi.getState().select(revisionId, ids, e.shiftKey);
     useUi.setState({ activeFrameId: frame.id });
-    live.presence({ selection: ids });
   };
 
   // Gizmo for move / rotate / resize on the first selected instance.
@@ -478,14 +491,14 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
   const measure = ui.measure?.revisionId === revisionId ? ui.measure : null;
   // The finished look is seamless (no drawn outlines); material colours keep soft outlines.
   const allEdges = view.shading === 'wireframe' || view.shading === 'xray' || (!fast && view.lens === 'none' && !showFasteners);
-  const edgesFor = allEdges ? placed.filter((x) => !x.style.hidden) : placed.filter((x) => selected.has(x.i.partId) || (view.lens === 'none' && failing.has(x.i.partId)));
+  const edgesFor = allEdges ? placed.filter((x) => !x.style.hidden) : placed.filter((x) => selected.has(x.i.partId) || peerSel.has(x.i.partId) || (view.lens === 'none' && failing.has(x.i.partId)));
 
   return (
     <>
       <OrbitControls ref={controls} makeDefault enableDamping={false} onChange={onCameraChange} minDistance={80} maxDistance={40000} regress />
       {view.shading !== 'wireframe' &&
         groups.map(([k, xs]) => <InstGroup key={k} items={xs} clip={clip} onClick={onClick} onHover={(key, x, y) => showTip(key && useUi.getState().tool !== 'measure' ? tipFor(key) : null, x, y)} keyOf={keyOf} />)}
-      <EdgeLines items={edgesFor} selected={selected} failing={failing} clip={clip} soft={allEdges && view.shading !== 'wireframe'} />
+      <EdgeLines items={edgesFor} selected={selected} failing={failing} clip={clip} soft={allEdges && view.shading !== 'wireframe'} peerSel={peerSel} />
       {focus && !fast && (
         <ContactShadows position={[center.x, analysis.layout.bounds.min.y - 0.5, center.z]} scale={radius * 3.2} blur={2.4} opacity={0.32} far={Math.max(400, analysis.layout.bounds.max.y - analysis.layout.bounds.min.y)} resolution={512} frames={1} key={`${analysis.layout.bounds.min.y}:${radius}:${view.explode}`} />
       )}
@@ -512,6 +525,18 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focu
             );
           }),
       )}
+      {focus &&
+        noteOn.map(([partId, n]) => {
+          const at = placed.find((x) => x.i.partId === partId);
+          if (!at) return null;
+          return (
+            <Html key={`note-${partId}`} position={[at.center.x, at.i.max.y + at.i.explode.y * view.explode, at.center.z]} center zIndexRange={[15, 5]}>
+              <button className="note-pin" title={at.part?.name} onClick={() => useUi.getState().select(revisionId, [partId])} data-testid="note-pin">
+                💬 {n}
+              </button>
+            </Html>
+          );
+        })}
       {measure && <MeasureLine m={measure} analysis={analysis} />}
       {((frame.props.dimensions as DimDef[] | undefined) ?? []).map((d) => {
         const ca = placed.find((x) => x.i.key === d.a.key)?.center;
@@ -693,7 +718,7 @@ const BOX_EDGES = [
 ];
 
 /** All edges in one LineSegments: wireframe/X-ray, selection outline, failing-part outline (colour is never the only signal). */
-function EdgeLines({ items, selected, failing, clip, soft }: { items: { i: PlacedInstance; center: THREE.Vector3 }[]; selected: Set<string>; failing: Set<string>; clip: THREE.Plane[]; soft?: boolean }) {
+function EdgeLines({ items, selected, failing, clip, soft, peerSel }: { items: { i: PlacedInstance; center: THREE.Vector3 }[]; selected: Set<string>; failing: Set<string>; clip: THREE.Plane[]; soft?: boolean; peerSel?: Map<string, string> }) {
   const geom = useMemo(() => {
     const pos: number[] = [];
     const col: number[] = [];
@@ -704,7 +729,8 @@ function EdgeLines({ items, selected, failing, clip, soft }: { items: { i: Place
       const h = { x: x.i.size.x / 2, y: x.i.size.y / 2, z: x.i.size.z / 2 };
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(x.i.rotation.x * DEG, x.i.rotation.y * DEG, x.i.rotation.z * DEG));
       const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => new THREE.Vector3(k & 1 ? h.x : -h.x, k & 2 ? h.y : -h.y, k & 4 ? h.z : -h.z).applyQuaternion(q).add(x.center));
-      const c = selected.has(x.i.partId) ? cSel : failing.has(x.i.partId) ? cFail : cEdge;
+      const peer = peerSel?.get(x.i.partId);
+      const c = selected.has(x.i.partId) ? cSel : peer ? new THREE.Color(peer) : failing.has(x.i.partId) ? cFail : cEdge;
       for (const [a, b] of BOX_EDGES) {
         pos.push(corners[a].x, corners[a].y, corners[a].z, corners[b].x, corners[b].y, corners[b].z);
         col.push(c.r, c.g, c.b, c.r, c.g, c.b);
@@ -714,7 +740,7 @@ function EdgeLines({ items, selected, failing, clip, soft }: { items: { i: Place
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     return g;
-  }, [items, selected, failing, soft]);
+  }, [items, selected, failing, soft, peerSel]);
   return (
     <lineSegments geometry={geom} raycast={() => null}>
       <lineBasicMaterial vertexColors clippingPlanes={clip} transparent={soft} opacity={soft ? 0.38 : 1} />

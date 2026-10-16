@@ -13,6 +13,7 @@ import { BomTable } from '../frames/BomTable';
 import { Findings } from '../frames/Findings';
 import { Assumptions } from '../frames/Assumptions';
 import { Icon } from '../Icon';
+import { DetailView } from './DetailView';
 
 /** One product at a time, big: the 3D model, its drawing, its parts list or its checks. */
 export function FocusView() {
@@ -40,6 +41,11 @@ export function FocusView() {
         <ScaledPane>
           {(w, h) => <Sheet frame={{ ...frameFor(rev.id), type: 'sheet', rect: { x: 0, y: 0, w, h: h + 28 } }} content={content} analysis={analysis} revision={bundle.revision} product={bundle.product} revisionId={rev.id} explode={0} sectionPlane={null} />}
         </ScaledPane>
+      )}
+      {view === 'detail' && (
+        <ZoomPane className="detail-pane">
+          <DetailView revisionId={rev.id} />
+        </ZoomPane>
       )}
       {view === 'parts' && (
         <ZoomPane className="focus-card big-table">

@@ -6,3 +6,4 @@ export * from './standard';
 export * from './import';
 export * from './preview';
 export * from './export';
+export * from './dxf';

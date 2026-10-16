@@ -7,7 +7,11 @@ import { useUi } from '@/lib/store';
 import { usePrefs } from '@/lib/prefs';
 import type { RevisionLive } from '@/lib/live';
 import type { MsgKey } from '@/lib/i18n';
+import { useState } from 'react';
+import type { NoteTag } from '@bom/domain';
+import { api } from '@/lib/api';
 import { FindingCard } from '../frames/Findings';
+import { ThreadCard } from './Comments';
 import { Icon } from '../Icon';
 
 const DIM_LABEL: Record<DimKey, MsgKey> = { L: 'insp.length', W: 'insp.width', T: 'insp.thickness' };
@@ -178,10 +182,58 @@ export function SimplePartProps({ rev, part, details }: { rev: RevisionLive; par
       )}
       <h4>{t('insp.problems')}</h4>
       {findings.length ? findings.map((f) => <FindingCard key={f.key} f={f} rev={rev} revisionId={rev.id} readOnly={rev.readOnly} />) : <div className="ok-line">✓ {t('findings.none')}</div>}
+      <PartNotes rev={rev} part={part} />
       <details className="more-details">
         <summary>{t('insp.more')}</summary>
         {details}
       </details>
+    </div>
+  );
+}
+
+/** Notes for the team on this part (threads anchored to the part; they carry to the next draft). */
+export function PartNotes({ rev, part }: { rev: RevisionLive; part: Part }) {
+  const t = useT();
+  const [body, setBody] = useState('');
+  const [tag, setTag] = useState<NoteTag | ''>('');
+  const [busy, setBusy] = useState(false);
+  const threads = (rev.bundle?.threads ?? []).filter((th) => th.anchor.kind === 'part' && th.anchor.partId === part.id).sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved') || b.createdAt.localeCompare(a.createdAt));
+  const post = async () => {
+    setBusy(true);
+    try {
+      await api('/api/threads', { method: 'POST', json: { revisionId: rev.id, anchor: { kind: 'part', partId: part.id, stdCode: part.stdCode, position: part.position }, body, tag: tag || null } });
+      setBody('');
+      setTag('');
+      await rev.refresh();
+    } catch (e) {
+      useUi.getState().toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="part-notes" data-testid="part-notes">
+      <h4>
+        {t('notes.onPart')} {threads.length ? <span className="note-badge">{threads.filter((x) => x.status === 'open').length}</span> : null}
+      </h4>
+      <textarea className="input" rows={2} placeholder={t('notes.placeholder')} value={body} onChange={(e) => setBody(e.target.value)} data-testid="note-input" />
+      <div className="row" style={{ marginTop: 6 }}>
+        <select className="select" value={tag} onChange={(e) => setTag(e.target.value as NoteTag | '')} aria-label={t('notes.kind')}>
+          <option value="">{t('notes.kind')}</option>
+          {(['question', 'issue', 'decision-needed', 'idea'] as NoteTag[]).map((x) => (
+            <option key={x} value={x}>
+              {t(`tag.${x}` as MsgKey)}
+            </option>
+          ))}
+        </select>
+        <span className="grow" />
+        <button className="btn primary" disabled={!body.trim() || busy} onClick={post} data-testid="note-post">
+          {t('notes.post')}
+        </button>
+      </div>
+      {threads.map((th) => (
+        <ThreadCard key={th.id} th={th} rev={rev} />
+      ))}
     </div>
   );
 }

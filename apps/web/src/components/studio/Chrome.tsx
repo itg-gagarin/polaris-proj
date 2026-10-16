@@ -72,6 +72,7 @@ export function TitleCard() {
 const VIEWS: { v: MainView; k: MsgKey; icon: string }[] = [
   { v: 'model', k: 'view.model', icon: 'cube' },
   { v: 'drawing', k: 'view.drawing', icon: 'drawing' },
+  { v: 'detail', k: 'view.detail', icon: 'search' },
   { v: 'parts', k: 'view.parts', icon: 'list' },
   { v: 'checks', k: 'view.checks', icon: 'check' },
   { v: 'board', k: 'view.board', icon: 'board' },
@@ -135,7 +136,7 @@ export function TopActions() {
     <div className="float-card top-actions">
       <div className="avatars" aria-label="People here">
         {peers.map((p) => (
-          <span key={p.clientId} className={`avatar ${following === p.user.id ? 'following' : ''}`} style={{ background: p.user.color }} title={`${p.user.name} (${TEAMS[p.user.team as keyof typeof TEAMS]?.label.en ?? p.user.team}) · click to follow`} onClick={() => follow(p.user.id)}>
+          <span key={p.clientId} className={`avatar ${following === p.user.id ? 'following' : ''}`} style={{ background: p.user.color }} title={`${p.user.name} (${TEAMS[p.user.team as keyof typeof TEAMS]?.label.en ?? p.user.team}) · ${t('follow.click')}`} onClick={() => follow(p.user.id)} data-testid={`follow-${p.user.id}`}>
             {initials(p.user.name)}
           </span>
         ))}
@@ -329,6 +330,29 @@ export function ZoomButtons() {
       </button>
       <button className="ibtn" onClick={() => zoomFit(live.items)} aria-label={t('zoom.fit')} title={tip(`${t('zoom.fit')} (Shift+1)`)} data-testid="zoom-fit">
         <Icon name="fit" />
+      </button>
+    </div>
+  );
+}
+
+/** While following someone: say so, in their colour, with one big Stop button. */
+export function FollowBanner() {
+  const t = useT();
+  const { live } = useEditor();
+  usePresenceVersion();
+  const following = useUi((s) => s.following);
+  if (!following) return null;
+  const p = live.peers().find((x) => x.user.id === following);
+  const stop = () => {
+    useUi.setState({ following: null });
+    live.presence({ following: null });
+  };
+  return (
+    <div className="float-card follow-banner" style={{ borderColor: p?.user.color }} data-testid="follow-banner">
+      <span className="avatar" style={{ background: p?.user.color ?? '#999', marginLeft: 0 }}>{initials(p?.user.name ?? '?')}</span>
+      <span>{p ? t('follow.following', { name: p.user.name.split(' ')[0] }) : t('follow.left')}</span>
+      <button className="btn" onClick={stop} data-testid="follow-stop">
+        {t('follow.stop')}
       </button>
     </div>
   );

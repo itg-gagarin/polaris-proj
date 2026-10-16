@@ -65,7 +65,7 @@ export function Comments() {
   );
 }
 
-function ThreadCard({ th, rev }: { th: Thread; rev: RevisionLive }) {
+export function ThreadCard({ th, rev }: { th: Thread; rev: RevisionLive }) {
   const t = useT();
   const { users, me } = useEditor();
   const [reply, setReply] = useState('');

@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { makeAssembly, makePatch } from '@bom/domain';
 import { useEditor, usePresenceVersion } from '@/lib/editor';
-import { useUi, type Tool } from '@/lib/store';
+import { useUi, FOCUS_FRAME, type Tool } from '@/lib/store';
 import { usePrefs } from '@/lib/prefs';
 import { zoomFit, zoomIn, zoomOut, zoomReset } from '@/lib/zoom';
 import { parseCommand } from '@/lib/commands';
@@ -15,6 +15,7 @@ import { BottomBar } from './BottomBar';
 import { FocusView } from './studio/FocusView';
 import { TitleCard, ViewSwitcher, TopActions, SimpleTools, ZoomControl } from './studio/Chrome';
 import { SettingsDialog, HelpDialog, AddHardwareDialog, GuideCard } from './studio/Dialogs';
+import { FollowBanner } from './studio/Chrome';
 import { Palette } from './Palette';
 import { ImportDialog } from './ImportDialog';
 import { LeftDock } from './panels/LeftDock';
@@ -55,6 +56,7 @@ export function Shell() {
         <SimpleTools />
       )}
       {advanced ? <BottomBar /> : <GuideCard />}
+      <FollowBanner />
       <Palette />
       <ImportDialog />
       <SettingsDialog />
@@ -198,6 +200,50 @@ function useFollow() {
       useUi.getState().toast('The presenter brought everyone here', 'info');
     });
   }, [meetingId, live]);
+  // Followers see what the person sees: product, view, take-apart, colours and selection (PRD §9 follow mode).
+  useEffect(() => {
+    if (!following) return;
+    const p = live.peers().find((x) => x.user.id === following);
+    if (!p) return;
+    const ui = useUi.getState();
+    const f = p.focus;
+    if (f) {
+      const patch: Partial<ReturnType<typeof useUi.getState>> = {};
+      if (f.mainView && f.mainView !== ui.view) patch.view = f.mainView as never;
+      if (f.revisionId && f.revisionId !== ui.activeRevisionId) patch.activeRevisionId = f.revisionId;
+      if (Object.keys(patch).length) useUi.setState(patch);
+      if (f.frame) {
+        const cur = ui.frameViews[FOCUS_FRAME];
+        const next = { explode: f.frame.explode, lens: f.frame.lens as never, view: f.frame.view as never, shading: f.frame.shading as never, section: f.frame.section };
+        if (!cur || cur.explode !== next.explode || cur.lens !== next.lens || cur.view !== next.view || cur.shading !== next.shading || JSON.stringify(cur.section) !== JSON.stringify(next.section)) ui.setFrameView(FOCUS_FRAME, next);
+      }
+    }
+    const sel = { revisionId: p.selRevisionId ?? null, partIds: p.selection ?? [] };
+    if (sel.revisionId !== ui.selection.revisionId || sel.partIds.join() !== ui.selection.partIds.join()) useUi.setState({ selection: sel });
+  }, [v, following, live]);
+  // Publish what I look at (throttled), so others can follow me and see my selection.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const publish = () => {
+      timer = null;
+      const s = useUi.getState();
+      const fv = s.frameViews[FOCUS_FRAME];
+      live.presence({
+        selection: s.selection.partIds,
+        selRevisionId: s.selection.revisionId,
+        focus: { mainView: s.view, revisionId: s.activeRevisionId, frame: fv ? { explode: fv.explode, lens: fv.lens, view: fv.view, shading: fv.shading, section: fv.section } : null },
+      });
+    };
+    publish();
+    const unsub = useUi.subscribe((s, prev) => {
+      if (s.selection === prev.selection && s.view === prev.view && s.activeRevisionId === prev.activeRevisionId && s.frameViews[FOCUS_FRAME] === prev.frameViews[FOCUS_FRAME]) return;
+      if (!timer) timer = setTimeout(publish, 80);
+    });
+    return () => {
+      unsub();
+      if (timer) clearTimeout(timer);
+    };
+  }, [live]);
   // Share my board view so others can follow me.
   const board = useUi((s) => s.board);
   useEffect(() => {

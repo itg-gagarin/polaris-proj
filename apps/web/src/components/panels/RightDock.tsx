@@ -17,7 +17,7 @@ export function RightDock() {
   const advanced = usePrefs((s) => s.mode) === 'advanced';
   const tabs: [RightTab, MsgKey][] = [
     ['properties', advanced ? 'dock.properties' : 'studio.edit'],
-    ['comments', 'dock.comments'],
+    ['comments', advanced ? 'dock.comments' : 'studio.notes'],
     ['review', 'dock.review'],
     ['ai', 'dock.ai'],
     ['meeting', 'dock.meeting'],

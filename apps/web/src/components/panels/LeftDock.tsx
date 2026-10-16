@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import type { FrameItem, Part } from '@bom/domain';
 import { newId, TEAMS } from '@bom/domain';
 import { materialColor } from '@bom/exporters/colors';
-import { useEditor, useLiveVersion, useRevision, useT } from '@/lib/editor';
+import { useEditor, useLiveVersion, usePresenceVersion, useRevision, useT } from '@/lib/editor';
 import { useUi, type LeftTab, type LayerMode } from '@/lib/store';
 import { usePrefs } from '@/lib/prefs';
 import type { MsgKey } from '@/lib/i18n';
@@ -99,11 +99,35 @@ function Outliner() {
   const rev = useRevision(ui.activeRevisionId);
   const content = rev?.content;
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [q, setQ] = useState('');
+  const t = useT();
+  const { live } = useEditor();
+  usePresenceVersion();
   if (!rev || !content) return <div className="muted">Click a frame to see its parts.</div>;
   const hidden = new Set(ui.hidden[rev.id] ?? []);
   const selected = new Set(ui.selection.revisionId === rev.id ? ui.selection.partIds : []);
+  // Free-text search: every word must appear in the part's names, codes, position, material or finish.
+  const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const asmName = (p: Part) => content.assemblies.find((a) => a.id === p.assemblyId)?.name ?? '';
+  const hay = (p: Part) => `${p.name} ${p.originalName} ${p.stdCode ?? ''} ${p.position ?? ''} ${p.material ?? ''} ${p.finishCode ?? ''} ${p.hardwareSku ?? ''} ${p.l1 ?? ''} ${asmName(p)}`.toLowerCase();
+  const shownParts = words.length ? content.parts.filter((p) => words.every((w) => hay(p).includes(w))) : content.parts;
+  const peerOn = new Map<string, string>();
+  for (const pr of live.peers()) if (pr.selRevisionId === rev.id) for (const id of pr.selection ?? []) peerOn.set(id, pr.user.color);
+  const notesOn = new Map<string, number>();
+  for (const th of rev.bundle?.threads ?? []) if (th.status === 'open' && th.anchor.kind === 'part') notesOn.set(th.anchor.partId, (notesOn.get(th.anchor.partId) ?? 0) + 1);
   const groups = new Map<string, Part[]>();
-  for (const p of content.parts) groups.set(p.assemblyId ?? '—', [...(groups.get(p.assemblyId ?? '—') ?? []), p]);
+  for (const p of shownParts) groups.set(p.assemblyId ?? '—', [...(groups.get(p.assemblyId ?? '—') ?? []), p]);
+  const mark = (text: string) => {
+    if (!words.length) return text;
+    const i = text.toLowerCase().indexOf(words[0]);
+    return i < 0 ? text : (
+      <>
+        {text.slice(0, i)}
+        <mark>{text.slice(i, i + words[0].length)}</mark>
+        {text.slice(i + words[0].length)}
+      </>
+    );
+  };
   const asm = new Map(content.assemblies.map((a) => [a.id, a]));
   const toggleHide = (ids: string[]) => {
     const allHidden = ids.every((id) => hidden.has(id));
@@ -114,9 +138,26 @@ function Outliner() {
   const unplaced = new Set(rev.analysis?.layout.unplaced.map((u) => u.partId) ?? []);
   return (
     <div data-testid="outliner">
+      <div className="part-search">
+        <input
+          className="input"
+          type="search"
+          placeholder={t('studio.findPart')}
+          aria-label={t('studio.findPart')}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && shownParts[0]) ui.select(rev.id, [shownParts[0].id]);
+            if (e.key === 'Escape') setQ('');
+          }}
+          data-testid="part-search"
+        />
+        {words.length > 0 && <span className="muted search-count">{t('studio.found', { n: shownParts.length })}</span>}
+      </div>
       <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
         {content.header.description ?? ''} · {content.parts.length} lines · {content.assemblies.length} assemblies
       </div>
+      {words.length > 0 && !shownParts.length && <div className="muted">{t('studio.noneFound')}</div>}
       {[...groups.entries()].map(([aid, ps]) => {
         const a = asm.get(aid);
         const ids = ps.map((p) => p.id);
@@ -135,16 +176,19 @@ function Outliner() {
                 {lockState(ids) ? '🔒' : '🔓'}
               </button>
             </div>
-            {!collapsed[aid] &&
+            {(!collapsed[aid] || words.length > 0) &&
               ps.map((p) => {
                 const lock = rev.locks.find((l) => l.partId === p.id);
                 return (
                   <div key={p.id} className={`tree-node ${selected.has(p.id) ? 'selected' : ''}`} style={{ paddingLeft: 22 }} onClick={(e) => ui.select(rev.id, [p.id], e.shiftKey)} title={`${p.originalName} · ${p.stdCode ?? 'no Std Code'}`}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: materialColor(p), flex: '0 0 8px' }} />
                     <span className="grow ellipsis">
-                      {p.name}
-                      {p.position ? ` · ${p.position}` : ''}
+                      {mark(p.name)}
+                      {p.position ? <> · {mark(p.position)}</> : ''}
+                      {words.length > 0 && p.stdCode && words.some((w) => p.stdCode!.toLowerCase().includes(w)) ? <span className="mono muted"> · {mark(p.stdCode)}</span> : null}
                     </span>
+                    {peerOn.get(p.id) ? <span className="peer-dot" style={{ background: peerOn.get(p.id) }} title="Selected by someone else" /> : null}
+                    {notesOn.get(p.id) ? <span className="note-badge" title={t('studio.notes')}>💬 {notesOn.get(p.id)}</span> : null}
                     {unplaced.has(p.id) && <span className="chip warn" title="In the Unplaced tray">tray</span>}
                     <span className="muted">×{p.qty}</span>
                     <button className="icon-btn" onClick={(e) => (e.stopPropagation(), toggleHide([p.id]))}>

@@ -14,7 +14,7 @@ export type LeftTab = 'products' | 'outliner' | 'layers';
 export type RightTab = 'properties' | 'comments' | 'review' | 'ai' | 'meeting' | 'history';
 export type LayerMode = 'team' | 'material' | 'l1';
 /** Main view: one product at a time (simple) or the free board with frames (PRD canvas). */
-export type MainView = 'model' | 'drawing' | 'parts' | 'checks' | 'board';
+export type MainView = 'model' | 'drawing' | 'detail' | 'parts' | 'checks' | 'board';
 /** The synthetic frame id the focused 3D view registers under (camera, zoom). */
 export const FOCUS_FRAME = 'focus';
 

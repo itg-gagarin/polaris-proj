@@ -166,6 +166,18 @@ export interface Part {
   source: { sheet?: string; row?: number; file?: string } | null;
   /** Free-form attributes kept from the import (e.g. legacy cost columns are NOT kept). */
   attrs: Record<string, string | number | boolean | null>;
+  /** Detail drawing attached by people (AutoCAD DXF or an image), shown in the Detail view. */
+  drawing?: PartDrawing | null;
+}
+
+export interface PartDrawing {
+  /** Stored file (repository uri). */
+  uri: string;
+  name: string;
+  kind: 'dxf' | 'image';
+  mime: string;
+  uploadedBy: Id;
+  uploadedAt: string;
 }
 
 export interface Assembly {
@@ -339,7 +351,7 @@ export interface Finding {
 
 export type PartField =
   | 'qty' | 'unit' | 'material' | 'materialCode' | 'finishCode' | 'hardwareSku' | 'teamOwner' | 'position'
-  | 'stdCode' | 'role' | 'notes' | 'name' | 'locked' | 'asymmetric' | 'visible' | 'axisMap' | 'kind' | 'assemblyId' | 'match';
+  | 'stdCode' | 'role' | 'notes' | 'name' | 'locked' | 'asymmetric' | 'visible' | 'axisMap' | 'kind' | 'assemblyId' | 'match' | 'drawing';
 
 export type PatchOp =
   | { op: 'setDim'; partId: Id; dim: DimKey; value: number; from?: number }

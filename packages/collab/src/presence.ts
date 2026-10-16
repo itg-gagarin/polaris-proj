@@ -6,6 +6,10 @@ export interface PresenceState {
   /** Board coordinates. */
   cursor: { x: number; y: number } | null;
   selection: string[];
+  /** Revision the selection belongs to (so others highlight it on the right product). */
+  selRevisionId?: string | null;
+  /** What the person is looking at in the studio, so followers see the same: view, product, take-apart, colours. */
+  focus?: { mainView: string; revisionId: string | null; frame: { explode: number; lens: string; view: string; shading: string; section: { axis: 'x' | 'y' | 'z'; at: number } | null } | null } | null;
   /** Active frame and its camera, so others can follow. */
   view: { frameId: string | null; camera: { position: [number, number, number]; target: [number, number, number] } | null; board: { x: number; y: number; zoom: number } } | null;
   /** Meeting: the lead drives the shared view. */

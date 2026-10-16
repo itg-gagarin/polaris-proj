@@ -15,7 +15,7 @@ export function EditorApp({ boardId }: { boardId: string }) {
     const q = new URLSearchParams(location.search);
     const wantView = q.get('view') as MainView | null;
     const mode = usePrefs.getState().mode;
-    const view: MainView = wantView && ['model', 'drawing', 'parts', 'checks', 'board'].includes(wantView) ? wantView : mode === 'advanced' ? useUi.getState().view : 'model';
+    const view: MainView = wantView && ['model', 'drawing', 'detail', 'parts', 'checks', 'board'].includes(wantView) ? wantView : mode === 'advanced' ? useUi.getState().view : 'model';
     useUi.setState({ view: view === 'board' && mode !== 'advanced' ? 'model' : view, importOpen: q.get('import') === '1' });
     api<Bootstrap>('/api/bootstrap')
       .then((b) => {

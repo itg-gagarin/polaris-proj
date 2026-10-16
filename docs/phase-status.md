@@ -118,3 +118,16 @@ corner gaps above need the factory's answer on how the face frame is joined.
   flush faces flickering instead.
 - Not from the BOM, so not drawn: tapered legs, profiles' moulded shapes, woven seats. Seating has no
   layout template yet.
+
+### Follow-up: search, follow, notes, detail drawings (2026-10-16)
+
+| Area | Change | Evidence |
+|---|---|---|
+| Parts search | Free-text search in the parts panel (name, original name, Std Code, position, material, finish, SKU, assembly); matches highlighted, Enter selects the first | e2e |
+| Follow mode | Presence carries the person's view, product, take-apart, colours and selection; followers mirror them (camera too) with a "You are following …" banner and Stop; everyone sees others' selections outlined in their colour (3D and parts list) | e2e (two tabs) |
+| Notes | "Notes" tab in the simple layout; "Notes on this part" in the inspector (kind, @mentions); 💬 pins on parts in 3D; counts in the parts list | e2e |
+| Detail view | Part sheet: title block, three views with sizes (cut size from the BOM), corner details A–D with the parts each corner meets, joints table; knob / pull drawn from BOM sizes. Assembly sheets: one assembly at a time (one copy), balloons in a row with leaders, parts table, Previous / Next for meetings; Print | exporters tests (Night Stand profile 489 × 55, corners meet the front legs; Chest 794 cut vs 876 drawn), e2e |
+| AutoCAD | Attach a .dxf (or a picture) to a part (versioned field `drawing`), optionally to every part with the same code; DXF reader handles lines, polylines with bulges, circles, arcs, ellipses, splines, text and blocks, in mm from $INSUNITS. DWG must be saved as DXF first | bom-io DXF tests; agrees with `dxf-parser` on our own exported DXF |
+
+Not done: importing a whole product's geometry from AutoCAD (only per-part drawings); the Behance
+reference could not be opened from the build environment.
