@@ -4,23 +4,40 @@
     "web": {
       "root": "apps/web",
       "framework": "nextjs",
-      "bindings": [{ "type": "service", "service": "sync", "format": "url", "env": "SYNC_URL" }]
+      "bindings": [
+        {
+          "type": "service",
+          "service": "sync",
+          "format": "url",
+          "env": "SYNC_URL"
+        }
+      ]
     },
     "sync": {
       "root": ".",
       "framework": "container",
       "runtime": "container",
-      "entrypoint": "services/sync/Dockerfile"
+      "entrypoint": "Dockerfile.vercel"
     },
     "worker": {
       "root": ".",
       "framework": "container",
       "runtime": "container",
-      "entrypoint": "services/worker/Dockerfile"
+      "entrypoint": "Containerfile.vercel"
     }
   },
   "rewrites": [
-    { "source": "/sync/(.*)", "destination": { "service": "sync" } },
-    { "source": "/(.*)", "destination": { "service": "web" } }
+    {
+      "source": "/sync/(.*)",
+      "destination": {
+        "service": "sync"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
   ]
 }

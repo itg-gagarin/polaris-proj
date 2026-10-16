@@ -1,5 +1,7 @@
-# @bom/sync as a container service (vercel.json: root ".", entrypoint "services/sync/Dockerfile";
-# the build context is the repository root so workspace packages resolve).
+# Container image for the `sync` service (Hocuspocus, services/sync) — vercel.json entrypoint.
+# It lives at the repo root because Vercel builds with the Dockerfile's folder as the build context,
+# and the image needs the whole workspace. (The worker's image is Containerfile.vercel; the root
+# Dockerfile is the all-in-one web app for other Docker hosts.)
 ARG BASE_IMAGE=node:22-slim
 FROM ${BASE_IMAGE}
 

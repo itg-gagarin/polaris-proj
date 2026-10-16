@@ -21,17 +21,50 @@ How they connect:
 - **web ↔ worker**: no HTTP; jobs go through `app.jobs` in Postgres (`QUEUE_BACKEND=postgres` is the
   default whenever a database URL is set in the worker; set it on `web` too).
 
+Container images: Vercel builds a container service with the Dockerfile's folder as the build context,
+so both images sit at the repo root (they need the whole workspace and `pnpm-lock.yaml`):
+`Dockerfile.vercel` (sync) and `Containerfile.vercel` (worker). `.vercelignore` keeps `fixtures/private`,
+`node_modules`, `.env*` and build output out of the upload.
+
 Project environment variables (shared by all services): `DATABASE_URL` (or `POSTGRES_URL` from the
 Neon/Supabase integration), `SITE_PASSWORD`, `SYNC_TOKEN_SECRET` (a long random string),
 `QUEUE_BACKEND=postgres`. Do **not** set `SYNC_URL` — Vercel injects it into `web` from the binding.
 
-Verified in the build sandbox with the same images and wiring (Postgres 16, web + sync + worker started
-together): migrations applied once under a lock, two separate browsers co-edited live through `sync`,
-an AI accept in one browser reached the other through the binding call, the 30 s snapshot saved both
-the live edit and the AI change with the right author, and the worker ran a queued export.
-`vercel.json` passes the Vercel CLI's schema validator (v64.3.1). Not verified: an actual Vercel deploy
-(Vercel was unreachable from the sandbox) — in particular WebSocket support and `$PORT` for container
-services, and that the `/sync/(.*)` rewrite forwards WebSocket upgrades in production as `vercel dev` does.
+### Deploying from the command line
+
+```sh
+npx vercel@latest login              # once
+npx vercel@latest link               # pick/create the project (writes .vercel/, git-ignored)
+# Storage → Neon (free) in the dashboard, connected to the project; then:
+npx vercel@latest env add SITE_PASSWORD production
+npx vercel@latest env add SYNC_TOKEN_SECRET production   # e.g. openssl rand -hex 32
+npx vercel@latest env add QUEUE_BACKEND production       # postgres
+npx vercel@latest deploy --prod
+```
+
+### What was verified on a real deployment (Vercel Hobby + Neon free, 2026-10-16)
+
+- First request migrated and seeded the empty Neon database (~11 s); later requests are normal.
+- `/sync/*` reaches the sync container, WebSocket upgrades included: two separate browsers co-edited
+  over `wss://<domain>/sync/ws` (~170 ms between them).
+- web → sync binding: an AI accept in one browser appeared in the other; `bootstrap` returns
+  `syncUrl: /sync/ws`, which only happens when `SYNC_URL` is injected.
+- Persistence when everyone leaves: an edit made 1.5 s before the only browser closed was in the revision
+  row 5 s later, credited to its author ("Live edits saved").
+
+### Caveat: Vercel containers are request-driven
+
+Container services are started by requests and may be paused or stopped when no request is open. So:
+- **sync** is fine while browsers are connected (the WebSocket is an open request); its 30 s snapshot
+  timer only runs then, and the unload snapshot runs when the last browser leaves (verified above).
+  Raw Yjs state is also saved 2 s after each change (max 10 s).
+- **worker** gets no requests (it is internal and nothing calls it), so on Vercel it does not poll the
+  queue. The web app therefore runs due jobs itself right after the response (`after()`, on by default
+  when `VERCEL` is set, `INLINE_JOBS=on|off` to override) when a job is queued (batch export, AI run,
+  ERP push on release) or polled. The queue claims with `SKIP LOCKED`, so if the worker does run it never
+  runs a job twice. Long jobs are limited by the function duration (routes ask for 60 s). On a host with
+  always-on containers (Docker, Render, Fly) the worker service is the real path; set `INLINE_JOBS=off`
+  on web there if you want all jobs to go through it.
 
 ## Free: Vercel (Hobby) + a free Postgres (Neon or Supabase)
 
@@ -53,9 +86,10 @@ first start (`supabase/migrations`, applied once) and seeds the Hollan House dem
 
 What changes on Vercel (all handled in code, verified in a simulated run — `VERCEL=1`, `POSTGRES_URL`,
 empty database: migrations, seed, sign-in, editor, PDF/XLSX/STEP export and AI optimize all worked):
-- No in-process background worker (serverless); everything the UI needs runs inside requests.
+- No in-process background worker loop (serverless); queued jobs run after the response (see above).
 - Without a database the app still starts but keeps data in `/tmp`, which resets often — add the database.
-- Live collaboration works between tabs of one browser only (no websocket sync server on Vercel).
+- Without the `sync` service (web only, no `vercel.json` services), live collaboration works between tabs
+  of one browser only.
 
 **Check before relying on it** (could not be verified from the build environment — vercel.com and
 render.com were not reachable):

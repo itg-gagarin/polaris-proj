@@ -4,7 +4,7 @@ import { approveLane, carryForward, forkAlternative, laneNotifications, promoteA
 import { jobs } from '@bom/worker';
 import { route, body, HttpError } from '@/server/http';
 import { requireSession } from '@/server/auth';
-import { getQueue } from '@/server/context';
+import { getQueue, kickJobs } from '@/server/context';
 import { applyUserPatch, loadRevision, revisionBundle } from '@/server/service';
 
 type Action =
@@ -17,6 +17,8 @@ type Action =
   | { action: 'promote' }
   | { action: 'waive'; findingKey: string; reason: string; kind: Waiver['kind'] }
   | { action: 'unwaive'; findingKey: string };
+
+export const maxDuration = 60;
 
 /** Revision workflow (PRD §9): submit → lanes → release; drafts, alternatives, waivers. */
 export const POST = route(async (req, { params }) => {
@@ -68,6 +70,7 @@ export const POST = route(async (req, { params }) => {
       await audit(`Released ${revision.label}`, { hash: contentHash(released.content) });
       const q = await getQueue();
       await jobs.erpPush(q, { revisionId: released.id });
+      kickJobs();
       break;
     }
     case 'nextDraft': {

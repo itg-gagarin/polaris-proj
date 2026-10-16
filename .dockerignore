@@ -10,3 +10,4 @@ run-shots
 .env.*
 # Original customer workbooks never leave the developer's machine.
 fixtures/private
+.vercel

@@ -1,0 +1,13 @@
+# Never upload the original customer workbooks (password-protected, may contain costing).
+fixtures/private
+# Local build output, data and tooling
+**/node_modules
+**/.next
+.data
+run-shots
+**/test-results
+**/playwright-report
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

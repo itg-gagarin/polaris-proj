@@ -1,5 +1,5 @@
-# @bom/worker as a container service (vercel.json: root ".", entrypoint "services/worker/Dockerfile";
-# the build context is the repository root so workspace packages resolve).
+# Container image for the internal `worker` service (services/worker) — vercel.json entrypoint.
+# At the repo root because Vercel builds with the file's folder as the build context.
 ARG BASE_IMAGE=node:22-slim
 FROM ${BASE_IMAGE}
 

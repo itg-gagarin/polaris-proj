@@ -14,3 +14,6 @@ playwright-report/
 fixtures/private/
 # screenshots from local app walkthroughs
 run-shots/
+.vercel
+.env*
+!.env.example

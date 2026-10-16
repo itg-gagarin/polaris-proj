@@ -10,12 +10,18 @@ import { createAiProvider, type AiProvider } from '@bom/ai';
 import type { JobQueue } from '@bom/worker';
 import { createDeps, createQueue, Worker } from '@bom/worker';
 
+import { after } from 'next/server';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ENV = process.env as Record<string, string | undefined>;
 /** Vercel (and other serverless hosts): read-only code directory, no long-running loops. */
 const SERVERLESS = !!ENV.VERCEL;
+/**
+ * Run due jobs inside the web function, after the response. Default on serverless: nothing there polls the
+ * queue (on Vercel the worker service is request-driven, so it sleeps while nobody calls it).
+ */
+const INLINE_JOBS = (ENV.INLINE_JOBS ?? (SERVERLESS ? 'on' : 'off')) === 'on';
 
 function migrationsDir(): string | undefined {
   const candidates = [ENV.BOM_MIGRATIONS_DIR, resolve(process.cwd(), 'supabase/migrations'), resolve(process.cwd(), '../../supabase/migrations')].filter((c): c is string => !!c);
@@ -70,6 +76,24 @@ function ctx(): Ctx {
 export const getRepo = () => ctx().repo;
 export const getAi = () => ctx().ai;
 export const getQueue = () => ctx().queue;
+
+/**
+ * Call from a route handler that enqueued a job (or polls one): with INLINE_JOBS the due jobs run after the
+ * response is sent. The queue claims with SKIP LOCKED, so this and a running worker service never run a job twice.
+ */
+export function kickJobs(max = 3): void {
+  if (!INLINE_JOBS) return;
+  after(async () => {
+    try {
+      const [repo, queue] = await Promise.all([ctx().repo, ctx().queue]);
+      await queue.recoverStale(15 * 60_000);
+      // Stay inside the function's time limit (maxDuration 60 s on the routes that call this).
+      await new Worker({ queue, deps: createDeps(ENV, repo), timeoutMs: 45_000 }).drain(max);
+    } catch (e) {
+      console.error('inline jobs failed', (e as Error).message);
+    }
+  });
+}
 
 /** Per-request repository: under Supabase every query runs as the signed-in user (row-level security). */
 export async function repoFor(authUid: string | null): Promise<Repository> {
