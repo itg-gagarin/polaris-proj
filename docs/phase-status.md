@@ -83,3 +83,26 @@ the PRD's "4 validation products and Dresser 1727" were not provided.
 4. External buyers can view and comment; "approve sample" has a permission but no UI or API yet.
 5. Keyboard: the PRD keymap preferences (AutoCAD / Blender styles) are not built; dynamic input while
    dragging a gizmo is replaced by typed commands (`MOVE -120`).
+
+## UI v2 — simple studio (after user testing, 2026-10-16)
+
+Feedback from the first hosted preview: too complex for the people who will use it (many are older),
+no settings, laggy, zoom unclear, hard to know where to start, gaps in the 3D, no screws or bolts,
+unclear how to add hardware. What changed (the PRD's power features stay under Settings → Advanced):
+
+| Area | Change | Evidence |
+|---|---|---|
+| Layout | Figma-style light canvas with floating cards: title + version (top left), view switch (3D model / Drawing / Parts list / Checks; Board in Advanced), actions (top right), parts list (left), inspector (right), big labelled tools (bottom) | e2e `simple.spec.ts` |
+| Start | Home page after sign-in: open a product, bring one in from Excel, open the board; "How it works" | e2e |
+| Guidance | 4-step getting-started card that ticks itself off; "Show me" highlights the target; Help with plain Q&A and shortcuts | e2e (`guide-edit`, `guide-checks`) |
+| Inspector | Plain Length / Width / Thickness boxes, how many, material, finish, problems; codes, team, joints under "More details"; product summary when nothing is selected | e2e |
+| Settings | Language, text size (normal / large / extra large scales the whole interface), simple / advanced, light / dark / system, 3D quality (detailed / fast), hints, guide; workspace check limits for leads and admins (`PATCH /api/workspace/settings`, audited) | domain tests, e2e |
+| Zoom | One zoom for every view: − % + and fit at the bottom, Ctrl + / Ctrl − / Ctrl 0 (instead of the browser's page zoom), Shift+1 fit, Ctrl+wheel | e2e "zoom" |
+| Lag | Components subscribe to the store fields they draw; presence (cursors) on its own channel; frames memoised; hover tooltip is DOM (no 3D redraw); lower resolution while turning | Headless Chrome (software GL): mouse move over the model 6.6 s of long tasks → 0; board pan over empty space 0 long tasks. **Real-GPU timing needs verification on the factory's PCs** |
+| 3D | Flush faces no longer flicker (near plane + size-dependent inset); outlines and ground shadow in detailed quality; knobs go to the narrowest drawers and pulls to the widest (they used to stack on the first drawers) | golden update with reason |
+| Screws & bolts | `planFasteners`: positions suggested from the template (insert nuts on glides, hanger bolts on leg tops, connector bolts at posts / rail ends, screws at blocks, runners, slides, drawer fronts), quantities from the BOM, counted when there are more than places, Allen keys "in the bag". Shown with see-through wood and a legend | engine tests (Night Stand: 4 mur nanas on the 4 glides, 60/60 screws) |
+| Hardware | "Add hardware" dialog: pull handle, knob, glide, drawer slide, screws; quantity from drawers / legs; inspector switches pull ↔ knob and 1 / 2 per drawer | e2e "add hardware" |
+| New checks | `face-frame-gap` (a 489 mm profile in a 571 mm leg gap leaves 41 mm at each end — same on all three case goods, so the template's joint guess or the BOM needs an engineer's call) and `drawer-pull` (Dresser: 6 knobs/pulls for 8 drawers) | engine tests with fixture numbers |
+
+Open: fastener positions are suggestions (Low confidence) until joints carry fastener counts; the
+corner gaps above need the factory's answer on how the face frame is joined.

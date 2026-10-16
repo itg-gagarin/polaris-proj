@@ -16,7 +16,7 @@ export function Findings({ rev, analysis, revisionId, readOnly }: { rev: Revisio
   const list = analysis.findings.filter((f) => showWaived || !f.waived).sort((a, b) => order[a.severity] - order[b.severity] || a.ruleId.localeCompare(b.ruleId));
   const s = analysis.summary;
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: 8 }} data-testid="findings">
+    <div className="frame-fill" style={{ overflow: 'auto', padding: 8 }} data-testid="findings">
       <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap' }}>
         <span className="chip fail">{s.fail} fail</span>
         <span className="chip warn">{s.warn} warn</span>

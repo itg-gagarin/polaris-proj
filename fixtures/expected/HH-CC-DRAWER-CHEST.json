@@ -1,7 +1,7 @@
 {
   "summary": {
     "fail": 13,
-    "warn": 2,
+    "warn": 4,
     "info": 2,
     "waived": 0,
     "parts": 89,
@@ -101,6 +101,34 @@
       },
       "hasFix": true,
       "message": "\"RAKITAN LACI BAWAH\": box outside width 712 mm, but opening 766 − 2 × 12.7 slide clearance = 740.6 mm (too narrow by 14.3 mm per side, tolerance ±0.5)."
+    },
+    {
+      "rule": "face-frame-gap",
+      "severity": "warn",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "length": 794,
+        "opening": 876,
+        "gap": 41,
+        "height": 149
+      },
+      "hasFix": false,
+      "message": "\"frame depan datar bawah\" is 794 mm, but the space between the legs at that height is 876 mm, so the front frame has a 41 mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong."
+    },
+    {
+      "rule": "face-frame-gap",
+      "severity": "warn",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "length": 794,
+        "opening": 876,
+        "gap": 41,
+        "height": 1399
+      },
+      "hasFix": false,
+      "message": "\"frame profil datar atas - bwh\" is 794 mm, but the space between the legs at that height is 876 mm, so the front frame has a 41 mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong."
     },
     {
       "rule": "front-stack-height",

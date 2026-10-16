@@ -4,7 +4,7 @@ import { makePatch, newId } from '@bom/domain';
 import type { Command } from './commands';
 import { HELP } from './commands';
 import type { LiveWorkspace, RevisionLive } from './live';
-import { useUi } from './store';
+import { useUi, FOCUS_FRAME } from './store';
 import { download } from './api';
 
 export interface ExecCtx {
@@ -20,10 +20,17 @@ function activeRevision(live: LiveWorkspace): RevisionLive | null {
 /** The frame view commands act on: the active frame if it shows a model (3D or sheet), else the active revision's 3D frame. */
 function activeFrame(live: LiveWorkspace): FrameItem | null {
   const s = useUi.getState();
+  // One product in focus (simple layout): commands act on the focused 3D view.
+  if (s.view !== 'board') return focusFrame(s.activeRevisionId);
   const f = live.items.find((i) => i.id === s.activeFrameId && i.kind === 'frame') as FrameItem | undefined;
   if (f && (f.type === 'viewport' || f.type === 'sheet')) return f;
   const revId = f?.revisionId ?? s.activeRevisionId;
   return (live.items.find((i) => i.kind === 'frame' && i.type === 'viewport' && i.revisionId === revId) as FrameItem | undefined) ?? f ?? null;
+}
+
+/** The synthetic frame the focused view renders (not stored on the board). */
+export function focusFrame(revisionId: string | null): FrameItem {
+  return { id: FOCUS_FRAME, kind: 'frame', type: 'viewport', rect: { x: 0, y: 0, w: 1, h: 1 }, z: 0, title: '', productId: null, revisionId, props: { shading: 'material' } };
 }
 
 function selectedParts(rev: RevisionLive | null): Part[] {

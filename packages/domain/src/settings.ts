@@ -105,3 +105,32 @@ export function requiredLanesFor(settings: WorkspaceSettings, category: string, 
   const m = settings.requiredLanes;
   return (subCategory && m[`${category}/${subCategory}`]) || m[category] || m['*'] || [];
 }
+
+/** The thresholds a lead can edit from Settings (all in mm). The mattress table stays in code-free data. */
+export const EDITABLE_THRESHOLDS = ['reveal', 'revealTolerance', 'slideClearance', 'slideTolerance', 'clashTolerance', 'grooveAllowance', 'slatGapMax', 'mattressClearance', 'tipOverHeight'] as const;
+export type EditableThreshold = (typeof EDITABLE_THRESHOLDS)[number];
+
+/** Only leads and admins (never external buyers) change the factory's check limits. */
+export function canEditWorkspaceSettings(user: { role: string; external: boolean }): boolean {
+  return !user.external && (user.role === 'lead' || user.role === 'admin');
+}
+
+/**
+ * Apply edited thresholds. Unknown keys and values that are not finite, negative or above 5 m are
+ * rejected with a message (nothing is applied); returns the new settings and what changed.
+ */
+export function updateThresholds(settings: WorkspaceSettings, edits: Record<string, unknown>): { settings: WorkspaceSettings; changed: Partial<Record<EditableThreshold, { from: number; to: number }>> } {
+  const changed: Partial<Record<EditableThreshold, { from: number; to: number }>> = {};
+  const next = { ...settings.thresholds };
+  for (const [k, v] of Object.entries(edits)) {
+    if (!(EDITABLE_THRESHOLDS as readonly string[]).includes(k)) throw new Error(`Unknown setting "${k}"`);
+    const key = k as EditableThreshold;
+    const n = typeof v === 'string' ? Number(v.replace(',', '.')) : v;
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 5000) throw new Error(`"${k}" must be a number of mm between 0 and 5000`);
+    if (next[key] !== n) {
+      changed[key] = { from: next[key], to: n };
+      next[key] = n;
+    }
+  }
+  return { settings: { ...settings, thresholds: next }, changed };
+}

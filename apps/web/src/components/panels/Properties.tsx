@@ -7,12 +7,17 @@ import { useUi } from '@/lib/store';
 import { api } from '@/lib/api';
 import type { RevisionLive } from '@/lib/live';
 import { FindingCard } from '../frames/Findings';
+import { usePrefs } from '@/lib/prefs';
+import { ProductSummary, SimplePartProps } from './SimpleProps';
 
 /** Figma-style inspector (PRD §5): size, transform, material, finish, hardware, team, joints, checks. */
 export function Properties() {
   const t = useT();
-  const ui = useUi();
-  const rev = useRevision(ui.selection.revisionId ?? ui.activeRevisionId);
+  const selection = useUi((s) => s.selection);
+  const activeRevisionId = useUi((s) => s.activeRevisionId);
+  const ui = { selection };
+  const simple = usePrefs((s) => s.mode) === 'simple';
+  const rev = useRevision(selection.revisionId ?? activeRevisionId);
   const [adding, setAdding] = useState(false);
   useEffect(() => {
     const h = () => setAdding(true);
@@ -21,6 +26,20 @@ export function Properties() {
   }, []);
   if (!rev?.content) return <div className="muted">{t('props.none')}</div>;
   const parts = rev.content.parts.filter((p) => ui.selection.revisionId === rev.id && ui.selection.partIds.includes(p.id));
+  if (simple)
+    return (
+      <div data-testid="properties">
+        {parts.length === 0 && !adding && <ProductSummary rev={rev} />}
+        {parts.length === 1 && <SimplePartProps rev={rev} part={parts[0]} details={<PartProps rev={rev} part={parts[0]} compact />} />}
+        {parts.length > 1 && <MultiProps rev={rev} parts={parts} />}
+        {adding && (
+          <>
+            <div className="section-title">{t('studio.addCatalogue')}</div>
+            <AddPart rev={rev} onDone={() => setAdding(false)} />
+          </>
+        )}
+      </div>
+    );
   return (
     <div data-testid="properties">
       {rev.readOnly && <div className="banner">{rev.bundle?.revision.state === 'released' ? t('readonly.released') : 'Read-only for your role'}</div>}
@@ -72,7 +91,8 @@ function Field({ rev, part, field, label }: { rev: RevisionLive; part: Part; fie
   );
 }
 
-function PartProps({ rev, part }: { rev: RevisionLive; part: Part }) {
+/** `compact`: inside the simple inspector's "More details" (sizes, qty, material, finish and checks are shown above it). */
+function PartProps({ rev, part, compact }: { rev: RevisionLive; part: Part; compact?: boolean }) {
   const t = useT();
   const { me } = useEditor();
   const a = rev.analysis;
@@ -109,21 +129,30 @@ function PartProps({ rev, part }: { rev: RevisionLive; part: Part }) {
       <div className="muted" style={{ fontSize: 12 }}>
         {part.originalName} · {part.l1 ?? ''}
       </div>
-      <div className="section-title">{t('props.size')}</div>
-      <div className="col">
-        <DimInput rev={rev} part={part} dim="T" />
-        <DimInput rev={rev} part={part} dim="W" />
-        <DimInput rev={rev} part={part} dim="L" />
-        <div className="muted" style={{ fontSize: 11 }}>{t('props.expressionHint')}</div>
-      </div>
+      {!compact && (
+        <>
+          <div className="section-title">{t('props.size')}</div>
+          <div className="col">
+            <DimInput rev={rev} part={part} dim="T" />
+            <DimInput rev={rev} part={part} dim="W" />
+            <DimInput rev={rev} part={part} dim="L" />
+            <div className="muted" style={{ fontSize: 11 }}>{t('props.expressionHint')}</div>
+          </div>
+        </>
+      )}
+      {compact && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{t('props.expressionHint')}</div>}
       <div className="kv" style={{ marginTop: 8 }}>
-        <label>{t('props.qty')}</label>
-        <input key={`${part.id}-qty-${part.qty}`} className="input" defaultValue={part.qty} readOnly={rev.readOnly} onBlur={(e) => {
-          const q = Number(e.currentTarget.value);
-          if (Number.isInteger(q) && q >= 0 && q !== part.qty) rev.edit(makePatch([{ op: 'setField', partId: part.id, field: 'qty', value: q }], `${part.name}: qty → ${q}`));
-        }} />
-        <Field rev={rev} part={part} field="material" label={t('props.material')} />
-        <Field rev={rev} part={part} field="finishCode" label={t('props.finish')} />
+        {!compact && (
+          <>
+            <label>{t('props.qty')}</label>
+            <input key={`${part.id}-qty-${part.qty}`} className="input" defaultValue={part.qty} readOnly={rev.readOnly} onBlur={(e) => {
+              const q = Number(e.currentTarget.value);
+              if (Number.isInteger(q) && q >= 0 && q !== part.qty) rev.edit(makePatch([{ op: 'setField', partId: part.id, field: 'qty', value: q }], `${part.name}: qty → ${q}`));
+            }} />
+            <Field rev={rev} part={part} field="material" label={t('props.material')} />
+            <Field rev={rev} part={part} field="finishCode" label={t('props.finish')} />
+          </>
+        )}
         <Field rev={rev} part={part} field="hardwareSku" label={t('props.hardware')} />
         <Field rev={rev} part={part} field="position" label="Position" />
         <label>{t('props.team')}</label>
@@ -183,8 +212,12 @@ function PartProps({ rev, part }: { rev: RevisionLive; part: Part }) {
           ))}
         </>
       )}
-      <div className="section-title">{t('props.issues')}</div>
-      {findings.length ? findings.map((f) => <FindingCard key={f.key} f={f} rev={rev} revisionId={rev.id} readOnly={rev.readOnly} />) : <div className="muted">{t('findings.none')}</div>}
+      {!compact && (
+        <>
+          <div className="section-title">{t('props.issues')}</div>
+          {findings.length ? findings.map((f) => <FindingCard key={f.key} f={f} rev={rev} revisionId={rev.id} readOnly={rev.readOnly} />) : <div className="muted">{t('findings.none')}</div>}
+        </>
+      )}
       <div className="section-title">{t('props.askAi')}</div>
       <div className="row">
         <input className="input grow" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Why is this front red?" onKeyDown={(e) => e.key === 'Enter' && question && ask()} />

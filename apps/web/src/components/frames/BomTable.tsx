@@ -83,7 +83,7 @@ export function BomTable({ rev, content, analysis, revisionId, readOnly }: Props
   );
 
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
+    <div className="frame-fill" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="row" style={{ padding: 6, borderBottom: '1px solid var(--line)' }}>
         <input className="input grow" placeholder="Filter by name, Std Code, material, finish…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <span className="muted">{content.parts.length} lines</span>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  applyPatch, makePatch, emptyContent, makePart, contentHash, can, classifyPatch, diffToPatch, DEFAULT_SETTINGS, fmtMm, parseMmInput, type User,
+  applyPatch, makePatch, emptyContent, makePart, contentHash, can, classifyPatch, diffToPatch, DEFAULT_SETTINGS, fmtMm, parseMmInput, canEditWorkspaceSettings, updateThresholds, type User,
 } from '../src';
 
 const user = (over: Partial<User>): User => ({ id: 'u1', name: 'A', email: 'a@x', teams: ['engineering'], role: 'editor', color: '#000', locale: 'en', external: false, ...over });
@@ -115,5 +115,25 @@ describe('units', () => {
     expect(fmtMm(567)).toBe('567');
     expect(parseMmInput('566,76')).toBeCloseTo(566.8);
     expect(parseMmInput('abc')).toBeNull();
+  });
+});
+
+describe('workspace thresholds (Settings → Workspace)', () => {
+  it('only leads and admins edit them, never external users', () => {
+    expect(canEditWorkspaceSettings({ role: 'lead', external: false })).toBe(true);
+    expect(canEditWorkspaceSettings({ role: 'admin', external: false })).toBe(true);
+    expect(canEditWorkspaceSettings({ role: 'editor', external: false })).toBe(false);
+    expect(canEditWorkspaceSettings({ role: 'admin', external: true })).toBe(false);
+  });
+  it('applies valid values (comma decimals too) and reports what changed', () => {
+    const r = updateThresholds(DEFAULT_SETTINGS, { reveal: '2,5', slideClearance: 12.7 });
+    expect(r.settings.thresholds.reveal).toBe(2.5);
+    expect(r.changed).toEqual({ reveal: { from: 2, to: 2.5 } });
+    expect(DEFAULT_SETTINGS.thresholds.reveal).toBe(2);
+  });
+  it('rejects unknown keys and bad numbers without applying anything', () => {
+    expect(() => updateThresholds(DEFAULT_SETTINGS, { mattresses: 1 })).toThrow(/Unknown/);
+    expect(() => updateThresholds(DEFAULT_SETTINGS, { reveal: -1 })).toThrow(/between 0 and 5000/);
+    expect(() => updateThresholds(DEFAULT_SETTINGS, { reveal: 'abc' })).toThrow();
   });
 });

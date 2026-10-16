@@ -12,3 +12,6 @@ export const projectors = new Map<string, Projector>();
 export const pickers = new Map<string, Picker>();
 /** Frames that can take a camera from follow mode / "Bring everyone here". */
 export const cameraSetters = new Map<string, (cam: { position: [number, number, number]; target: [number, number, number] }) => void>();
+
+/** Views that can zoom from the zoom control / keyboard (the focused 3D view registers here). */
+export const zoomers = new Map<string, { zoomBy(factor: number): void; fit(): void; reset(): void }>();

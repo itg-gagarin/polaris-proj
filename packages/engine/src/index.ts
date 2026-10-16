@@ -12,3 +12,4 @@ export * from './optimize';
 export * from './diff';
 export * from './compose';
 export * from './orient';
+export * from './fasteners';

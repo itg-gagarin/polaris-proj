@@ -782,6 +782,75 @@ export const sanityRule: CheckRule = {
   },
 };
 
+/* ------------------------------------------------------------------ */
+/**
+ * Front frame gaps: a horizontal face member (rail / profile) whose end does not reach a leg, stile or
+ * inner profile at its height leaves a visible hole in the front. Either its length or the joint the
+ * template assumes is wrong, so this is Medium confidence and has no automatic fix.
+ */
+const FACE_H = new Set(['frontProfile', 'frontRail', 'frontRailBottom']);
+const FACE_V = new Set(['legFront', 'sideInnerProfile', 'frontStile']);
+
+export const faceGapRule: CheckRule = {
+  id: 'face-frame-gap',
+  title: 'Gap in the front frame',
+  team: 'engineering',
+  families: [...CASE],
+  run(ctx) {
+    const inst = ctx.layout.instances.filter((i) => i.source !== 'tray' && !i.packing);
+    const verticals = inst.filter((i) => FACE_V.has(i.role ?? ''));
+    const overlap = (a0: number, a1: number, b0: number, b1: number) => Math.min(a1, b1) - Math.max(a0, b0);
+    const worst = new Map<string, { gap: number; len: number; opening: number; y: number }>();
+    for (const h of inst.filter((i) => FACE_H.has(i.role ?? ''))) {
+      const touching = verticals.filter((v) => overlap(v.min.y, v.max.y, h.min.y, h.max.y) > 1 && overlap(v.min.z, v.max.z, h.min.z, h.max.z) > 1);
+      const left = touching.filter((v) => v.min.x < h.min.x).reduce((m, v) => Math.max(m, v.max.x), -Infinity);
+      const right = touching.filter((v) => v.max.x > h.max.x).reduce((m, v) => Math.min(m, v.min.x), Infinity);
+      if (!Number.isFinite(left) || !Number.isFinite(right)) continue;
+      const gap = Math.max(h.min.x - left, right - h.max.x);
+      if (gap <= ctx.t.fitTolerance) continue;
+      const cur = worst.get(h.partId);
+      if (!cur || gap > cur.gap) worst.set(h.partId, { gap, len: h.max.x - h.min.x, opening: right - left, y: h.min.y });
+    }
+    return [...worst.entries()].map(([partId, w]) => {
+      const p = ctx.ix.byId.get(partId);
+      return finding(faceGapRule, {
+        severity: 'warn',
+        confidence: 'medium',
+        partIds: [partId],
+        message: `${name(p)} is ${mm(w.len)} mm, but the space between the legs at that height is ${mm(w.opening)} mm, so the front frame has a ${mm(w.gap)} mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong.`,
+        numbers: { length: r1(w.len), opening: r1(w.opening), gap: r1(w.gap), height: r1(w.y) },
+      });
+    });
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/** Every drawer needs something to pull it by: a knob or a pull handle on its front. */
+export const drawerPullRule: CheckRule = {
+  id: 'drawer-pull',
+  title: 'Drawer without a handle',
+  team: 'hardware',
+  families: [...CASE],
+  run(ctx) {
+    const slots = ctx.layout.rows.flatMap((r) => r.slots).filter((s) => s.box);
+    if (!slots.length) return [];
+    const pulls = ctx.layout.instances.filter((i) => i.role === 'knob' || i.role === 'handle');
+    const bare = slots.filter((s) => !pulls.some((h) => h.group === `${s.assemblyId}#${s.asmInstance}`));
+    if (!bare.length) return [];
+    const hw = [...ctx.ix.role('knob'), ...ctx.ix.role('handle')];
+    const fronts = [...new Set(bare.map((s) => s.frontPartId).filter((x): x is string => !!x))];
+    return [
+      finding(drawerPullRule, {
+        severity: 'warn',
+        confidence: 'medium',
+        partIds: [...hw.map((p) => p.id), ...fronts],
+        message: `${bare.length} of ${slots.length} drawers have no knob or pull handle: the BOM has ${pulls.length} for ${slots.length} drawers. Add the missing ones, or confirm these drawers open another way (push-to-open, finger groove).`,
+        numbers: { drawers: slots.length, handles: pulls.length, without: bare.length },
+      }),
+    ];
+  },
+};
+
 export const RULES: CheckRule[] = [
   clashRule,
   drawerSlideRule,
@@ -803,4 +872,6 @@ export const RULES: CheckRule[] = [
   unplacedRule,
   expressionRule,
   sanityRule,
+  faceGapRule,
+  drawerPullRule,
 ];

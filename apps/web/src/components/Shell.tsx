@@ -1,16 +1,20 @@
 'use client';
 import { useEffect } from 'react';
 import { makeAssembly, makePatch } from '@bom/domain';
-import { useEditor, useLiveVersion } from '@/lib/editor';
+import { useEditor, usePresenceVersion } from '@/lib/editor';
 import { useUi, type Tool } from '@/lib/store';
+import { usePrefs } from '@/lib/prefs';
+import { zoomFit, zoomIn, zoomOut, zoomReset } from '@/lib/zoom';
 import { parseCommand } from '@/lib/commands';
 import { runCommand } from '@/lib/exec';
 import { cameraSetters } from '@/lib/registry';
 import { onSummon } from '@bom/collab';
-import { TopBar } from './TopBar';
 import { Toolbar } from './Toolbar';
 import { Board } from './Board';
 import { BottomBar } from './BottomBar';
+import { FocusView } from './studio/FocusView';
+import { TitleCard, ViewSwitcher, TopActions, SimpleTools, ZoomControl } from './studio/Chrome';
+import { SettingsDialog, HelpDialog, AddHardwareDialog, GuideCard } from './studio/Dialogs';
 import { Palette } from './Palette';
 import { ImportDialog } from './ImportDialog';
 import { LeftDock } from './panels/LeftDock';
@@ -20,24 +24,43 @@ const KEYS: Record<string, Tool> = { h: 'hand', v: 'select', r: 'rect', d: 'diam
 const SHIFT_KEYS: Record<string, Tool> = { r: 'rotate', d: 'dimension', x: 'explode', a: 'addPart' };
 const VIEW_KEYS: Record<string, string> = { '1': 'FRONT', '3': 'SIDE', '7': 'TOP', '0': 'ISO' };
 
+/**
+ * Figma-style studio: the canvas fills the window and the tools float over it as light cards.
+ * Simple layout (default): one product at a time, few big tools. Advanced: the board with frames,
+ * all tools and the command line (PRD §5–6).
+ */
 export function Shell() {
-  const { live } = useEditor();
   useKeyboard();
   useFollow();
+  const view = useUi((s) => s.view);
+  const leftOpen = useUi((s) => s.leftOpen);
+  const rightOpen = useUi((s) => s.rightOpen);
+  const mode = usePrefs((s) => s.mode);
+  const guideOn = usePrefs((s) => !s.guideHidden) && mode === 'simple';
+  const advanced = mode === 'advanced';
   return (
-    <div className="shell">
-      <TopBar />
+    <div className={`studio mode-${mode} ${leftOpen ? 'left-open' : 'left-closed'} ${rightOpen ? 'right-open' : 'right-closed'} view-${view} ${guideOn ? 'guide-on' : ''}`}>
+      <div className="canvas">{view === 'board' ? <Board /> : <FocusView />}</div>
+      <TitleCard />
+      <ViewSwitcher />
+      <TopActions />
       <LeftDock />
-      <div style={{ gridArea: 'board', position: 'relative', minWidth: 0, minHeight: 0 }}>
-        <Board />
-        <Toolbar />
-      </div>
       <RightDock />
-      <BottomBar />
+      {view === 'board' ? (
+        <>
+          <Toolbar />
+          <ZoomControl />
+        </>
+      ) : (
+        <SimpleTools />
+      )}
+      {advanced ? <BottomBar /> : <GuideCard />}
       <Palette />
       <ImportDialog />
+      <SettingsDialog />
+      <HelpDialog />
+      <AddHardwareDialog />
       <Toasts />
-      {!live && null}
     </div>
   );
 }
@@ -71,10 +94,20 @@ function useKeyboard() {
     };
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
-      if (el.closest('input, textarea, select, [contenteditable="true"]')) return;
       const k = e.key.toLowerCase();
       const mod = e.ctrlKey || e.metaKey;
       const ui = useUi.getState();
+      // Zoom: Ctrl/⌘ + / − / 0 zoom the view instead of the browser page, even from a text box.
+      if (mod && !e.altKey && (k === '=' || k === '+' || e.code === 'NumpadAdd')) return (e.preventDefault(), zoomIn());
+      if (mod && !e.altKey && (k === '-' || k === '_' || e.code === 'NumpadSubtract')) return (e.preventDefault(), zoomOut());
+      if (mod && !e.altKey && k === '0') return (e.preventDefault(), zoomReset());
+      if (el.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (e.shiftKey && !mod && e.code === 'Digit1') return (e.preventDefault(), zoomFit(live.items));
+      if (e.shiftKey && !mod && e.code === 'Digit0') return (e.preventDefault(), zoomReset());
+      if (!mod && !e.altKey && !e.shiftKey && (k === '+' || k === '=')) return zoomIn();
+      if (!mod && !e.altKey && !e.shiftKey && k === '-') return zoomOut();
+      // The simple layout keeps only the few tools it shows (a stray "e" must not pick the eraser).
+      const simple = usePrefs.getState().mode === 'simple';
       if (mod && k === 'k') return (e.preventDefault(), useUi.setState({ paletteOpen: true }));
       if (mod && k === 'z') return (e.preventDefault(), cmd(e.shiftKey ? 'REDO' : 'UNDO'));
       if (mod && k === 'y') return (e.preventDefault(), cmd('REDO'));
@@ -115,6 +148,7 @@ function useKeyboard() {
       if (k === 'q') return useUi.setState({ toolLocked: !ui.toolLocked });
       if (e.shiftKey && SHIFT_KEYS[k]) {
         const tool = SHIFT_KEYS[k];
+        if (simple && tool !== 'addPart' && tool !== 'explode') return;
         if (tool === 'explode') {
           const f = ui.activeFrameId;
           if (f) ui.setFrameView(f, { explode: ui.frameView(f).explode > 0 ? 0 : 0.6 });
@@ -127,17 +161,19 @@ function useKeyboard() {
         }
         return useUi.setState({ tool });
       }
+      if (simple && !['v', 'h', 'm'].includes(k)) return;
       if (!e.shiftKey && KEYS[k]) useUi.setState({ tool: KEYS[k], measure: KEYS[k] === 'measure' ? null : ui.measure });
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Capture: the zoom keys must win over the browser and over focused canvases.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [live]);
 }
 
 /** Follow mode: mirror the followed person's board view and active camera (PRD §9). */
 function useFollow() {
   const { live } = useEditor();
-  const v = useLiveVersion();
+  const v = usePresenceVersion();
   const following = useUi((s) => s.following);
   useEffect(() => {
     if (!following) return;

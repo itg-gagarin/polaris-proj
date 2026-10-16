@@ -1,13 +1,13 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/server/auth';
-import { getRepo } from '@/server/context';
+import { HomeClient } from './HomeClient';
 
 export const dynamic = 'force-dynamic';
 
+/** Start page after sign-in. External buyers go straight to what is shared with them. */
 export default async function Home() {
   const s = await getSession();
   if (!s) redirect('/login');
-  const boards = await (await getRepo()).listBoards(s.workspace.id);
-  if (s.user.external || !boards.length) redirect('/shared');
-  redirect(`/board/${boards[0].id}`);
+  if (s.user.external) redirect('/shared');
+  return <HomeClient />;
 }

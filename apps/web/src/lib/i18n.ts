@@ -1,7 +1,9 @@
 /** Interface in English and Bahasa Indonesia (PRD §12). Part names stay as written in the dictionary. */
+import { studioEn, studioId } from './i18n-studio';
+
 export type Locale = 'en' | 'id';
 
-const en = {
+const coreEn = {
   'app.name': 'Furniture BOM Studio',
   'top.share': 'Share',
   'top.aiOptimize': 'AI optimize',
@@ -170,9 +172,11 @@ const en = {
   'common.none': 'None',
 };
 
+const en = { ...coreEn, ...studioEn };
+
 export type MsgKey = keyof typeof en;
 
-const id: Record<MsgKey, string> = {
+const coreId: Record<keyof typeof coreEn, string> = {
   'app.name': 'Furniture BOM Studio',
   'top.share': 'Bagikan',
   'top.aiOptimize': 'Optimasi AI',
@@ -340,6 +344,8 @@ const id: Record<MsgKey, string> = {
   'common.loading': 'Memuat…',
   'common.none': 'Tidak ada',
 };
+
+const id: Record<MsgKey, string> = { ...coreId, ...studioId };
 
 export const MESSAGES: Record<Locale, Record<MsgKey, string>> = { en, id };
 

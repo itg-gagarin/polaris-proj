@@ -7,8 +7,7 @@ import { runCommand } from '@/lib/exec';
 
 export function BottomBar() {
   return (
-    <footer className="bottombar">
-      <Timeline />
+    <footer className="bottombar float-card">
       <CommandLine />
       <StatusBar />
     </footer>
@@ -16,7 +15,7 @@ export function BottomBar() {
 }
 
 /** Revision timeline: scrub through the product's revisions; older ones show read-only in its frames. */
-function Timeline() {
+export function Timeline() {
   const t = useT();
   const ui = useUi();
   const rev = useRevision(ui.activeRevisionId);

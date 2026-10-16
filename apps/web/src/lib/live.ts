@@ -171,6 +171,11 @@ export class RevisionLive extends Emitter {
 
   private pendingReason: string | null = null;
 
+  /** Re-run the checks (workspace thresholds changed). */
+  reanalyze() {
+    this.recompute(true);
+  }
+
   private recompute(now: boolean) {
     const run = () => {
       if (!this.content) return;
@@ -324,6 +329,8 @@ export class LiveWorkspace extends Emitter {
   boardProvider: Provider | null = null;
   boardUndo: Y.UndoManager | null = null;
   items: BoardItem[] = [];
+  /** Presence (cursors, selections, follow) changes many times a second: its own channel, so the board doesn't re-render. */
+  readonly presenceBus = new Emitter();
   revisions = new Map<string, RevisionLive>();
   saving = 0;
   onLostWrite: ((r: RevisionLive, l: { partId: string; field: string; yours: unknown; theirs: unknown }) => void) | null = null;
@@ -333,6 +340,13 @@ export class LiveWorkspace extends Emitter {
   constructor(readonly boardId: string, readonly user: User, public settings: WorkspaceSettings, readonly syncUrl: string | null, initialItems: BoardItem[]) {
     super();
     this.items = initialItems;
+  }
+
+  /** New workspace settings (Settings → Workspace): every open revision re-runs its checks. */
+  setSettings(s: WorkspaceSettings) {
+    this.settings = s;
+    for (const r of this.revisions.values()) r.reanalyze();
+    this.emit();
   }
 
   get awareness(): Awareness | null {
@@ -356,7 +370,7 @@ export class LiveWorkspace extends Emitter {
     });
     read();
     setPresence(this.boardProvider.awareness, { user: { id: this.user.id, name: this.user.name, color: this.user.color, team: this.user.teams[0] ?? 'design' }, cursor: null, selection: [], view: null, presenting: null, following: null, laser: null, ink: null } as PresenceState);
-    this.boardProvider.awareness.on('change', () => this.emit());
+    this.boardProvider.awareness.on('change', () => this.presenceBus.emit());
   }
 
   /** Send a pending board save now (tab close): keepalive lets the request outlive the page. */

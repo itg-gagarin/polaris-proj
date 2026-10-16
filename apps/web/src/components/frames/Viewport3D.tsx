@@ -1,15 +1,17 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Html } from '@react-three/drei';
+import { OrbitControls, TransformControls, Html, ContactShadows, AdaptiveDpr } from '@react-three/drei';
+import { useShallow } from 'zustand/react/shallow';
 import * as THREE from 'three';
 import type { FrameItem, Part, RevisionContent } from '@bom/domain';
 import { makePatch, TEAMS } from '@bom/domain';
 import type { Analysis, PlacedInstance } from '@bom/engine';
-import { dimOnAxis } from '@bom/engine';
+import { dimOnAxis, type FastenerMark } from '@bom/engine';
 import { materialColor } from '@bom/exporters/colors';
-import { useUi, type FrameView, type ViewName } from '@/lib/store';
-import { projectors, pickers, cameraSetters } from '@/lib/registry';
+import { useUi, FOCUS_FRAME, type FrameView, type ViewName } from '@/lib/store';
+import { projectors, pickers, cameraSetters, zoomers } from '@/lib/registry';
+import { usePrefs } from '@/lib/prefs';
 import type { RevisionLive } from '@/lib/live';
 import { useEditor } from '@/lib/editor';
 
@@ -86,33 +88,85 @@ interface Props {
   view: FrameView;
   readOnly: boolean;
   revisionId: string;
+  /** The single focused view (simple mode): ground shadow, screws & bolts, zoom control. */
+  focus?: boolean;
+  /** Suggested fastener positions to draw (screws & bolts toggle). */
+  fasteners?: FastenerMark[] | null;
+}
+
+function isDark(): boolean {
+  if (typeof document === 'undefined') return false;
+  const t = document.documentElement.getAttribute('data-theme');
+  return t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches);
 }
 
 export function Viewport3D(p: Props) {
-  const bg = typeof window !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches ? '#1b2027' : '#f3f4f6';
+  const quality = usePrefs((s) => s.quality);
+  const theme = usePrefs((s) => s.theme);
+  const bg = useMemo(() => (isDark() ? '#1b2027' : p.focus ? '#f5f5f4' : '#f3f4f6'), [theme, p.focus]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fast = quality === 'fast';
+  // Hover tooltip is plain DOM over the canvas: moving the mouse never re-draws the 3D scene.
+  const tip = useRef<HTMLDivElement>(null);
+  const showTip = useCallback((text: string | null, x = 0, y = 0) => {
+    const el = tip.current;
+    if (!el) return;
+    if (!text) {
+      el.style.display = 'none';
+      return;
+    }
+    if (el.textContent !== text) el.textContent = text;
+    el.style.display = 'block';
+    el.style.transform = `translate(${x + 12}px, ${y + 12}px)`;
+  }, []);
   return (
+    <>
     <Canvas
-      camera={{ fov: 32, near: 5, far: 60000, position: [2500, 1800, 3000] }}
+      key={quality}
+      // near 20 mm keeps depth precision fine enough that flush faces of touching parts don't flicker.
+      camera={{ fov: 32, near: 20, far: 60000, position: [2500, 1800, 3000] }}
       frameloop="demand"
-      dpr={[1, 2]}
-      gl={{ antialias: true, localClippingEnabled: true }}
+      dpr={fast ? 1 : [1, 2]}
+      // While turning or zooming, draw at lower resolution; full resolution again when the mouse stops.
+      performance={{ min: 0.5, debounce: 400 }}
+      gl={{ antialias: !fast, localClippingEnabled: true, powerPreference: fast ? 'low-power' : 'high-performance' }}
       onCreated={({ gl }) => (gl.localClippingEnabled = true)}
       style={{ position: 'absolute', inset: 0 }}
       data-testid={`viewport-${p.frame.id}`}
     >
       <color attach="background" args={[bg]} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[2000, 3000, 2500]} intensity={1.1} />
-      <directionalLight position={[-2000, 1000, -1500]} intensity={0.35} />
-      <Scene {...p} />
+      <hemisphereLight args={['#ffffff', '#d6d3cd', 0.7]} />
+      <directionalLight position={[2000, 3200, 2600]} intensity={1.05} />
+      <directionalLight position={[-2200, 1200, -1600]} intensity={0.3} />
+      <directionalLight position={[-600, 900, 3000]} intensity={0.25} />
+      <AdaptiveDpr />
+      <Scene {...p} fast={fast} showTip={showTip} />
     </Canvas>
+    <div ref={tip} className="v3d-tip" style={{ display: 'none' }} />
+    </>
   );
 }
 
-function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Props) {
+function Scene({ frame, rev, content, analysis, view, readOnly, revisionId, focus, fast, fasteners: fastenersProp, showTip }: Props & { fast: boolean; showTip: (text: string | null, x?: number, y?: number) => void }) {
   const { camera, invalidate, size, raycaster, scene } = useThree();
   const controls = useRef<any>(null);
-  const ui = useUi();
+  // Subscribe to what the scene draws only (not camera ticks, toasts, other frames…).
+  const ui = useUi(
+    useShallow((s) => ({
+      selection: s.selection,
+      hidden: s.hidden,
+      isolated: s.isolated,
+      layerHidden: s.layerHidden,
+      layerMode: s.layerMode,
+      ai: s.ai,
+      tool: s.tool,
+      activeFrameId: s.activeFrameId,
+      measure: s.measure,
+      snap: s.snap,
+      gridMm: s.gridMm,
+    })),
+  );
+  const fasteners = focus && fastenersProp?.length ? fastenersProp : null;
+  const showFasteners = !!fasteners;
   const { live } = useEditor();
   const parts = useMemo(() => new Map(content.parts.map((x) => [x.id, x])), [content]);
   const selected = new Set(ui.selection.revisionId === revisionId ? ui.selection.partIds : []);
@@ -127,7 +181,11 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
   const clashing = useMemo(() => new Set(analysis.clashes.flatMap((c) => [c.partA, c.partB])), [analysis]);
   const aiChanges = ui.ai.suggestion?.revisionId === revisionId ? ui.ai.suggestion.changes.filter((c) => ui.ai.accepted.includes(c.id)) : [];
   const aiChanged = useMemo(() => new Set(aiChanges.flatMap((c) => c.patch.ops.map((o) => ('partId' in o ? o.partId : '')))), [aiChanges]);
-  const [hover, setHover] = useState<{ key: string; point: THREE.Vector3 } | null>(null);
+  const tipFor = (key: string) => {
+    const inst = analysis.layout.instances.find((i) => i.key === key);
+    const pt = inst ? parts.get(inst.partId) : null;
+    return pt ? `${pt.name} · ${pt.stdCode ?? 'no code'} · ${pt.dims.T}×${pt.dims.W}×${pt.dims.L}` : null;
+  };
 
   const center = useMemo(() => {
     const b = analysis.layout.bounds;
@@ -157,9 +215,12 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
       shown.map((i) => {
         const e = view.explode;
         const c = new THREE.Vector3((i.min.x + i.max.x) / 2 + i.explode.x * e, (i.min.y + i.max.y) / 2 + i.explode.y * e, (i.min.z + i.max.z) / 2 + i.explode.z * e);
-        return { i, center: c, part: parts.get(i.partId), style: styleFor(i, parts.get(i.partId), view, failing, clashing, aiChanged) };
+        const st = styleFor(i, parts.get(i.partId), view, failing, clashing, aiChanged);
+        // Screws & bolts on: ghost the wood so the fasteners inside the joints show.
+        const style = showFasteners && i.kind !== 'hardware' && !st.hidden ? { ...st, opacity: Math.min(st.opacity, 0.28) } : st;
+        return { i, center: c, part: parts.get(i.partId), style };
       }),
-    [shown, view, parts, failing, clashing, aiChanged],
+    [shown, view, parts, failing, clashing, aiChanged, showFasteners],
   );
 
   // Group by (colour, opacity, stripes) → one InstancedMesh each: 1,000 parts stay at a handful of draw calls.
@@ -180,9 +241,14 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
   }, [view.section]);
 
   // Camera: views and frame selection.
+  const fitDist = useRef(1);
   const fit = (v: ViewName, targetCenter = center, r = radius) => {
     const dir = { iso: [1, 0.75, 1.25], front: [0, 0, 1], back: [0, 0, -1], side: [1, 0, 0], top: [0, 1, 0.0001] }[v];
-    const d = (r / Math.sin((32 * DEG) / 2)) * 1.05;
+    // Fit the bounding sphere to the narrower side of the view.
+    const aspect = size.width / Math.max(1, size.height);
+    const half = Math.min(16 * DEG, Math.atan(Math.tan(16 * DEG) * aspect));
+    const d = (r / Math.sin(half)) * 1.02;
+    if (targetCenter === center) fitDist.current = d;
     const n = new THREE.Vector3(...(dir as [number, number, number])).normalize();
     camera.position.copy(targetCenter.clone().add(n.multiplyScalar(d)));
     camera.lookAt(targetCenter);
@@ -212,7 +278,45 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.frameNonce, view.view]);
 
-  useEffect(() => invalidate(), [placed, ui.selection, view, invalidate, hover]);
+  useEffect(() => invalidate(), [placed, ui.selection, view, invalidate]);
+
+  // Zoom control / keyboard (focused view only): 100 % = the whole model fits.
+  const reportZoom = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const publishZoom = () => {
+    if (!focus || !controls.current) return;
+    if (reportZoom.current) return;
+    reportZoom.current = setTimeout(() => {
+      reportZoom.current = null;
+      const dist = camera.position.distanceTo(controls.current.target as THREE.Vector3);
+      useUi.setState({ zoom3d: fitDist.current / Math.max(1, dist) });
+    }, 120);
+  };
+  useEffect(() => {
+    if (!focus) return;
+    zoomers.set(FOCUS_FRAME, {
+      zoomBy: (f) => {
+        const t = controls.current?.target as THREE.Vector3 | undefined;
+        if (!t) return;
+        const offset = camera.position.clone().sub(t).divideScalar(f);
+        const len = Math.min(fitDist.current * 8, Math.max(60, offset.length()));
+        camera.position.copy(t.clone().add(offset.setLength(len)));
+        controls.current.update();
+        invalidate();
+        publishZoom();
+      },
+      fit: () => {
+        fit(view.view);
+        publishZoom();
+      },
+      reset: () => {
+        fit(view.view);
+        publishZoom();
+      },
+    });
+    return () => {
+      zoomers.delete(FOCUS_FRAME);
+    };
+  });
 
   // Register projector / picker / camera setter for markup pins, follow mode and meetings.
   useEffect(() => {
@@ -255,12 +359,14 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
 
   const onCameraChange = () => {
     invalidate();
+    publishZoom();
     const t = controls.current?.target as THREE.Vector3 | undefined;
     if (t && ui.activeFrameId === frame.id) {
       const cam = { position: camera.position.toArray() as [number, number, number], target: t.toArray() as [number, number, number] };
       live.presence({ view: { frameId: frame.id, camera: cam, board: useUi.getState().board } });
     }
-    useUi.setState((s) => ({ projectionTick: s.projectionTick + 1 }));
+    // Markup pinned to parts re-projects on the board; the focused view has no board markup.
+    if (!focus) useUi.setState((s) => ({ projectionTick: s.projectionTick + 1 }));
   };
 
   const keyOf = (e: ThreeEvent<PointerEvent | MouseEvent>) => {
@@ -338,16 +444,19 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
   };
 
   const measure = ui.measure?.revisionId === revisionId ? ui.measure : null;
-  const hoverInst = hover ? analysis.layout.instances.find((i) => i.key === hover.key) : null;
-  const hoverPart = hoverInst ? parts.get(hoverInst.partId) : null;
-  const edgesFor = view.shading === 'wireframe' || view.shading === 'xray' ? placed.filter((x) => !x.style.hidden) : placed.filter((x) => selected.has(x.i.partId) || (view.lens === 'none' && failing.has(x.i.partId)));
+  const allEdges = view.shading === 'wireframe' || view.shading === 'xray' || (!fast && view.lens === 'none' && !showFasteners);
+  const edgesFor = allEdges ? placed.filter((x) => !x.style.hidden) : placed.filter((x) => selected.has(x.i.partId) || (view.lens === 'none' && failing.has(x.i.partId)));
 
   return (
     <>
-      <OrbitControls ref={controls} makeDefault enableDamping={false} onChange={onCameraChange} />
+      <OrbitControls ref={controls} makeDefault enableDamping={false} onChange={onCameraChange} minDistance={80} maxDistance={40000} regress />
       {view.shading !== 'wireframe' &&
-        groups.map(([k, xs]) => <InstGroup key={k} items={xs} clip={clip} onClick={onClick} onHover={(key, point) => setHover(key ? { key, point } : null)} keyOf={keyOf} />)}
-      <EdgeLines items={edgesFor} selected={selected} failing={failing} clip={clip} />
+        groups.map(([k, xs]) => <InstGroup key={k} items={xs} clip={clip} onClick={onClick} onHover={(key, x, y) => showTip(key && useUi.getState().tool !== 'measure' ? tipFor(key) : null, x, y)} keyOf={keyOf} />)}
+      <EdgeLines items={edgesFor} selected={selected} failing={failing} clip={clip} soft={allEdges && view.shading !== 'wireframe'} />
+      {focus && !fast && (
+        <ContactShadows position={[center.x, analysis.layout.bounds.min.y - 0.5, center.z]} scale={radius * 3.2} blur={2.4} opacity={0.32} far={Math.max(400, analysis.layout.bounds.max.y - analysis.layout.bounds.min.y)} resolution={512} frames={1} key={`${analysis.layout.bounds.min.y}:${radius}:${view.explode}`} />
+      )}
+      {fasteners && <FastenerLayer marks={fasteners} explode={view.explode} instances={analysis.layout.instances} parts={parts} showTip={showTip} />}
       {view.section && <SectionCap axis={view.section.axis} at={view.section.at} bounds={analysis.layout.bounds} />}
       {view.lens === 'engineering' &&
         analysis.clashes.map((c, n) => (
@@ -369,13 +478,6 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
               </Html>
             );
           }),
-      )}
-      {hoverPart && hover && ui.tool !== 'measure' && (
-        <Html position={hover.point} zIndexRange={[30, 20]} style={{ pointerEvents: 'none' }}>
-          <div className="chip" style={{ background: 'var(--panel)', transform: 'translate(10px,10px)' }}>
-            {hoverPart.name} · {hoverPart.stdCode ?? 'no code'} · {hoverPart.dims.T}×{hoverPart.dims.W}×{hoverPart.dims.L}
-          </div>
-        </Html>
       )}
       {measure && <MeasureLine m={measure} analysis={analysis} />}
       {((frame.props.dimensions as DimDef[] | undefined) ?? []).map((d) => {
@@ -420,7 +522,9 @@ function Scene({ frame, rev, content, analysis, view, readOnly, revisionId }: Pr
   );
 }
 
-function InstGroup({ items, clip, onClick, onHover, keyOf }: { items: { i: PlacedInstance; center: THREE.Vector3; style: Style }[]; clip: THREE.Plane[]; onClick: (e: ThreeEvent<MouseEvent>) => void; onHover: (key: string | null, p: THREE.Vector3) => void; keyOf: (e: ThreeEvent<PointerEvent>) => string | null }) {
+const inset = (v: number) => Math.max(0.5, v - (v * 0.003 + 0.05));
+
+function InstGroup({ items, clip, onClick, onHover, keyOf }: { items: { i: PlacedInstance; center: THREE.Vector3; style: Style }[]; clip: THREE.Plane[]; onClick: (e: ThreeEvent<MouseEvent>) => void; onHover: (key: string | null, x: number, y: number) => void; keyOf: (e: ThreeEvent<PointerEvent>) => string | null }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const style = items[0].style;
   const tex = useMemo(() => (style.stripes ? stripeTexture() : null), [style.stripes]);
@@ -431,7 +535,9 @@ function InstGroup({ items, clip, onClick, onHover, keyOf }: { items: { i: Place
     items.forEach((x, n) => {
       o.position.copy(x.center);
       o.rotation.set(x.i.rotation.x * DEG, x.i.rotation.y * DEG, x.i.rotation.z * DEG);
-      o.scale.set(Math.max(0.5, x.i.size.x), Math.max(0.5, x.i.size.y), Math.max(0.5, x.i.size.z));
+      // A hairline, size-dependent inset (0.3 % + 0.05 mm): two parts flush on one face end up a few
+      // hundredths of a mm apart, so the one that should show wins instead of flickering.
+      o.scale.set(inset(x.i.size.x), inset(x.i.size.y), inset(x.i.size.z));
       o.updateMatrix();
       m.setMatrixAt(n, o.matrix);
     });
@@ -446,9 +552,9 @@ function InstGroup({ items, clip, onClick, onHover, keyOf }: { items: { i: Place
       onClick={onClick}
       onPointerMove={(e) => {
         e.stopPropagation();
-        onHover(keyOf(e), e.point.clone());
+        onHover(keyOf(e), e.nativeEvent.offsetX, e.nativeEvent.offsetY);
       }}
-      onPointerOut={() => onHover(null, new THREE.Vector3())}
+      onPointerOut={() => onHover(null, 0, 0)}
     >
       <meshStandardMaterial color={style.color} map={tex} transparent={style.opacity < 1} opacity={style.opacity} depthWrite={style.opacity >= 1} roughness={0.75} metalness={0.05} clippingPlanes={clip} clipShadows />
     </instancedMesh>
@@ -460,13 +566,13 @@ const BOX_EDGES = [
 ];
 
 /** All edges in one LineSegments: wireframe/X-ray, selection outline, failing-part outline (colour is never the only signal). */
-function EdgeLines({ items, selected, failing, clip }: { items: { i: PlacedInstance; center: THREE.Vector3 }[]; selected: Set<string>; failing: Set<string>; clip: THREE.Plane[] }) {
+function EdgeLines({ items, selected, failing, clip, soft }: { items: { i: PlacedInstance; center: THREE.Vector3 }[]; selected: Set<string>; failing: Set<string>; clip: THREE.Plane[]; soft?: boolean }) {
   const geom = useMemo(() => {
     const pos: number[] = [];
     const col: number[] = [];
     const cSel = new THREE.Color('#2563eb');
     const cFail = new THREE.Color('#dc2626');
-    const cEdge = new THREE.Color('#475569');
+    const cEdge = new THREE.Color(soft ? '#5b4636' : '#475569');
     for (const x of items) {
       const h = { x: x.i.size.x / 2, y: x.i.size.y / 2, z: x.i.size.z / 2 };
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(x.i.rotation.x * DEG, x.i.rotation.y * DEG, x.i.rotation.z * DEG));
@@ -481,10 +587,10 @@ function EdgeLines({ items, selected, failing, clip }: { items: { i: PlacedInsta
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     return g;
-  }, [items, selected, failing]);
+  }, [items, selected, failing, soft]);
   return (
     <lineSegments geometry={geom} raycast={() => null}>
-      <lineBasicMaterial vertexColors clippingPlanes={clip} />
+      <lineBasicMaterial vertexColors clippingPlanes={clip} transparent={soft} opacity={soft ? 0.38 : 1} />
     </lineSegments>
   );
 }
@@ -535,6 +641,79 @@ function MeasureLine({ m, analysis }: { m: NonNullable<ReturnType<typeof useUi.g
           {d.toFixed(1)} mm · gap {gap.map((g, n) => `${'XYZ'[n]} ${g.toFixed(1)}`).join(' ')}
         </div>
       </Html>
+    </>
+  );
+}
+
+const FASTENER_COLOR: Record<string, string> = { screw: '#9ca3af', connectorBolt: '#374151', hangerBolt: '#4b5563', insertNut: '#b7791f', tNut: '#a16207', capNut: '#6b7280', other: '#6b7280', tool: '#6b7280' };
+const CYL = new THREE.CylinderGeometry(0.5, 0.5, 1, 10);
+
+/**
+ * Screws, bolts and nuts at their suggested positions: real size (Ø × length along the drive axis)
+ * plus a dot that stays visible at any zoom. Positions follow the part they sit in when exploded.
+ */
+function FastenerLayer({ marks, explode, instances, parts, showTip }: { marks: FastenerMark[]; explode: number; instances: PlacedInstance[]; parts: Map<string, Part>; showTip: (text: string | null, x?: number, y?: number) => void }) {
+  const byKey = useMemo(() => new Map(instances.map((i) => [i.key, i])), [instances]);
+  const kinds = useMemo(() => {
+    const m = new Map<string, FastenerMark[]>();
+    for (const x of marks) m.set(x.kind, [...(m.get(x.kind) ?? []), x]);
+    return [...m.entries()];
+  }, [marks]);
+  const posOf = useCallback((m: FastenerMark) => {
+    const host = m.hosts.map((k) => byKey.get(k)).find(Boolean);
+    const e = host ? host.explode : { x: 0, y: 0, z: 0 };
+    // Centre of the shank: half its length into the part along the drive direction.
+    const half = (m.length / 2) * m.dir;
+    return new THREE.Vector3(m.at.x + e.x * explode + (m.axis === 'x' ? half : 0), m.at.y + e.y * explode + (m.axis === 'y' ? half : 0), m.at.z + e.z * explode + (m.axis === 'z' ? half : 0));
+  }, [byKey, explode]);
+  const nameOf = (k: string) => parts.get(byKey.get(k)?.partId ?? '')?.name ?? k;
+  return (
+    <>
+      {kinds.map(([kind, xs]) => (
+        <FastenerGroup key={kind} kind={kind} marks={xs} posOf={posOf} onHover={(m, x, y) => showTip(m ? `${parts.get(m.partId)?.name} · ${m.hosts.map(nameOf).join(' + ')} · ~` : null, x, y)} />
+      ))}
+    </>
+  );
+}
+
+function FastenerGroup({ kind, marks, posOf, onHover }: { kind: string; marks: FastenerMark[]; posOf: (m: FastenerMark) => THREE.Vector3; onHover: (m: FastenerMark | null, x: number, y: number) => void }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const dots = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(marks.flatMap((m) => posOf(m).toArray()), 3));
+    return g;
+  }, [marks, posOf]);
+  useEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const o = new THREE.Object3D();
+    marks.forEach((m, n) => {
+      o.position.copy(posOf(m));
+      o.rotation.set(m.axis === 'z' ? Math.PI / 2 : 0, 0, m.axis === 'x' ? Math.PI / 2 : 0);
+      o.scale.set(m.diameter, m.length, m.diameter);
+      o.updateMatrix();
+      mesh.setMatrixAt(n, o.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [marks, posOf]);
+  const color = FASTENER_COLOR[kind] ?? '#6b7280';
+  return (
+    <>
+      <instancedMesh
+        ref={ref}
+        args={[CYL, undefined, marks.length]}
+        onPointerMove={(e) => {
+          e.stopPropagation();
+          if (e.instanceId !== undefined) onHover(marks[e.instanceId], e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+        }}
+        onPointerOut={() => onHover(null, 0, 0)}
+      >
+        <meshStandardMaterial color={color} metalness={0.6} roughness={0.35} />
+      </instancedMesh>
+      <points geometry={dots} raycast={() => null}>
+        <pointsMaterial color={kind === 'screw' ? '#2563eb' : kind === 'insertNut' || kind === 'tNut' ? '#d97706' : '#7c3aed'} size={7} sizeAttenuation={false} depthTest={false} transparent opacity={0.9} />
+      </points>
     </>
   );
 }

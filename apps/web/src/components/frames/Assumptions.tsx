@@ -28,7 +28,7 @@ export function Assumptions({ rev, content, analysis, readOnly }: { rev: Revisio
     rev.edit(makePatch([{ op: 'setParameter', key, parameter: { key, expr: raw.startsWith('=') ? raw : null, value: Number.isFinite(v) ? v : (p?.value ?? 0), source: 'user', note: p?.note } }], `Parameter ${key} → ${raw}`));
   };
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: 8 }}>
+    <div className="frame-fill" style={{ overflow: 'auto', padding: 8 }}>
       <div className="section-title">Assumptions</div>
       <table className="grid">
         <tbody>

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardItem, FrameItem, MarkupItem, MarkupType, NoteAnchor } from '@bom/domain';
 import { newId, TEAMS } from '@bom/domain';
 import { meetingInk } from '@bom/collab';
-import { useEditor, useLiveVersion } from '@/lib/editor';
+import { useShallow } from 'zustand/react/shallow';
+import { useEditor, useLiveVersion, usePresenceVersion } from '@/lib/editor';
 import { useUi } from '@/lib/store';
 import { pickers } from '@/lib/registry';
 import { api } from '@/lib/api';
@@ -25,7 +26,8 @@ const SHAPES: MarkupType[] = ['rect', 'diamond', 'ellipse', 'arrow', 'line', 'pe
 export function Board() {
   const { live, me, users } = useEditor();
   useLiveVersion();
-  const ui = useUi();
+  // Only what the board draws: a camera move or a hover elsewhere must not re-render every frame.
+  const ui = useUi(useShallow((s) => ({ board: s.board, tool: s.tool, snap: s.snap, ortho: s.ortho, toolLocked: s.toolLocked, selectedItems: s.selectedItems, meetingId: s.meetingId, projectionTick: s.projectionTick })));
   const wrap = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [draft, setDraft] = useState<MarkupItem | null>(null);
@@ -45,6 +47,12 @@ export function Board() {
     return { x: (cx - r.left - bx) / zoom, y: (cy - r.top - by) / zoom };
   }, [bx, by, zoom]);
   const snap = (v: number) => (ui.snap ? Math.round(v / 10) * 10 : v);
+
+  // First time on the board this visit: start clear of the floating left panel.
+  useEffect(() => {
+    const b = useUi.getState().board;
+    if (b.x === 40 && b.y === 80) useUi.setState({ board: { ...b, x: 340, y: 90 } });
+  }, []);
 
   useEffect(() => {
     const el = wrap.current;
@@ -100,6 +108,9 @@ export function Board() {
   };
 
   const tool = space ? 'hand' : ui.tool;
+  // Frames are memoised: their drag handlers read the current tool through a ref.
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
   const meetingLive = !!ui.meetingId;
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -305,7 +316,6 @@ export function Board() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const peersList = live.peers();
   const authorColor = (id: string) => users.get(id)?.color;
   const sharedInk = ui.meetingId ? meetingInk(live.boardDoc, ui.meetingId).toArray() : [];
   const gridStep = 40 * zoom;
@@ -336,7 +346,7 @@ export function Board() {
             item={f}
             screen={{ x: bx + f.rect.x * zoom, y: by + f.rect.y * zoom, w: f.rect.w * zoom, h: f.rect.h * zoom, zoom }}
             onStartDrag={(e) => {
-              if (tool !== 'select' && tool !== 'hand') return;
+              if (toolRef.current !== 'select' && toolRef.current !== 'hand') return;
               e.stopPropagation();
               (wrap.current as HTMLElement).setPointerCapture(e.pointerId);
               setDrag({ kind: 'frame', id: f.id, sx: e.clientX, sy: e.clientY, rect: f.rect });
@@ -361,7 +371,6 @@ export function Board() {
           {draft && draft.type === 'pencil' && <path d={inkPath(draft.points)} fill="none" stroke={draft.style.stroke} strokeWidth={2.5} strokeLinecap="round" />}
           {draft && draft.type !== 'pencil' && <MarkupShape m={draft} selected={false} items={byId} tick={0} onPointerDown={() => {}} onDoubleClick={() => {}} />}
           {box && <rect x={box.x} y={box.y} width={box.w} height={box.h} fill="rgba(37,99,235,0.08)" stroke="#2563eb" strokeDasharray="4 3" />}
-          {peersList.map((p) => p.ink && <path key={`ink-${p.clientId}`} d={inkPath(p.ink.points.map(([x, y]) => ({ x, y })))} fill="none" stroke={p.ink.color} strokeWidth={2.5} opacity={0.8} />)}
         </g>
       </svg>
       {editing && <TextEditor item={byId.get(editing) as MarkupItem | undefined} screen={{ bx, by, zoom }} onDone={(text) => {
@@ -371,6 +380,24 @@ export function Board() {
         if (!text.trim()) removeItems([it.id]);
         else writeItem({ ...it, text });
       }} />}
+      <Peers bx={bx} by={by} zoom={zoom} />
+      <Minimap items={items} board={ui.board} viewport={size} />
+    </div>
+  );
+}
+
+/** Other people's cursors, laser and live ink: re-renders on presence only. */
+function Peers({ bx, by, zoom }: { bx: number; by: number; zoom: number }) {
+  const { live } = useEditor();
+  usePresenceVersion();
+  const peersList = live.peers();
+  return (
+    <>
+      <svg className="markup" style={{ pointerEvents: 'none' }}>
+        <g transform={`translate(${bx} ${by}) scale(${zoom})`}>
+          {peersList.map((p) => p.ink && <path key={`ink-${p.clientId}`} d={inkPath(p.ink.points.map(([x, y]) => ({ x, y })))} fill="none" stroke={p.ink.color} strokeWidth={2.5} opacity={0.8} />)}
+        </g>
+      </svg>
       {peersList.map((p) =>
         p.cursor ? (
           <div key={p.clientId} className="cursor-peer" style={{ left: bx + p.cursor.x * zoom, top: by + p.cursor.y * zoom }}>
@@ -382,8 +409,7 @@ export function Board() {
         ) : null,
       )}
       {peersList.map((p) => p.laser && <div key={`laser-${p.clientId}`} style={{ position: 'absolute', left: bx + p.laser.x * zoom - 6, top: by + p.laser.y * zoom - 6, width: 12, height: 12, borderRadius: 6, background: '#ef4444', boxShadow: '0 0 12px 4px rgba(239,68,68,.6)', pointerEvents: 'none', zIndex: 41 }} />)}
-      <Minimap items={items} board={ui.board} viewport={size} />
-    </div>
+    </>
   );
 }
 

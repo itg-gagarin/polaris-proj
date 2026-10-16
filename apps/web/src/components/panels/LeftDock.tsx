@@ -5,19 +5,21 @@ import { newId, TEAMS } from '@bom/domain';
 import { materialColor } from '@bom/exporters/colors';
 import { useEditor, useLiveVersion, useRevision, useT } from '@/lib/editor';
 import { useUi, type LeftTab, type LayerMode } from '@/lib/store';
+import { usePrefs } from '@/lib/prefs';
 import type { MsgKey } from '@/lib/i18n';
 
 export function LeftDock() {
   const t = useT();
   const open = useUi((s) => s.leftOpen);
   const tab = useUi((s) => s.leftTab);
+  const advanced = usePrefs((s) => s.mode) === 'advanced';
   const tabs: [LeftTab, MsgKey][] = [
     ['products', 'dock.products'],
-    ['outliner', 'dock.outliner'],
-    ['layers', 'dock.layers'],
+    ['outliner', advanced ? 'dock.outliner' : 'studio.parts'],
+    ...(advanced ? ([['layers', 'dock.layers']] as [LeftTab, MsgKey][]) : []),
   ];
   return (
-    <aside className={`dock left ${open ? 'open' : 'closed'}`} aria-label="Left dock">
+    <aside className={`dock left float-panel ${open ? 'open' : 'closed'}`} aria-label="Left dock" data-guide="parts">
       <div className="dock-tabs" role="tablist">
         <button className="dock-tab" onClick={() => useUi.setState({ leftOpen: !open })} aria-label={open ? t('dock.collapse') : t('dock.expand')} title={open ? t('dock.collapse') : t('dock.expand')}>
           {open ? '⟨' : '⟩'}
@@ -32,7 +34,7 @@ export function LeftDock() {
         <div className="dock-body">
           {tab === 'products' && <Products />}
           {tab === 'outliner' && <Outliner />}
-          {tab === 'layers' && <Layers />}
+          {tab === 'layers' && advanced && <Layers />}
         </div>
       )}
     </aside>

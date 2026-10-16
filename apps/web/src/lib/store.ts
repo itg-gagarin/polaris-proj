@@ -12,6 +12,10 @@ export type ViewName = 'iso' | 'front' | 'back' | 'side' | 'top';
 export type LeftTab = 'products' | 'outliner' | 'layers';
 export type RightTab = 'properties' | 'comments' | 'review' | 'ai' | 'meeting' | 'history';
 export type LayerMode = 'team' | 'material' | 'l1';
+/** Main view: one product at a time (simple) or the free board with frames (PRD canvas). */
+export type MainView = 'model' | 'drawing' | 'parts' | 'checks' | 'board';
+/** The synthetic frame id the focused 3D view registers under (camera, zoom). */
+export const FOCUS_FRAME = 'focus';
 
 export interface FrameView {
   shading: Shading;
@@ -49,6 +53,14 @@ export interface Measurement {
 
 interface UiState {
   locale: Locale;
+  view: MainView;
+  /** Scale of the drawing / parts views (1 = 100 %). */
+  focusZoom: number;
+  /** Focused 3D view: 100 % = whole model fits. */
+  zoom3d: number;
+  settingsOpen: boolean;
+  helpOpen: boolean;
+  addHardwareOpen: boolean;
   tool: Tool;
   toolLocked: boolean;
   board: { x: number; y: number; zoom: number };
@@ -99,6 +111,12 @@ let toastId = 0;
 
 export const useUi = create<UiState>((set, get) => ({
   locale: 'en',
+  view: 'model',
+  focusZoom: 1,
+  zoom3d: 1,
+  settingsOpen: false,
+  helpOpen: false,
+  addHardwareOpen: false,
   tool: 'select',
   toolLocked: false,
   board: { x: 40, y: 80, zoom: 0.55 },

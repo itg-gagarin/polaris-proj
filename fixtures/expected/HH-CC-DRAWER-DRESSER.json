@@ -1,7 +1,7 @@
 {
   "summary": {
     "fail": 18,
-    "warn": 2,
+    "warn": 5,
     "info": 1,
     "waived": 0,
     "parts": 94,
@@ -137,6 +137,47 @@
       },
       "hasFix": true,
       "message": "\"RAKITAN LACI BAWAH\": box outside width 693 mm, but opening 716 − 2 × 12.7 slide clearance = 690.6 mm (too wide by 1.2 mm per side, tolerance ±0.5)."
+    },
+    {
+      "rule": "drawer-pull",
+      "severity": "warn",
+      "confidence": "medium",
+      "team": "hardware",
+      "numbers": {
+        "drawers": 8,
+        "handles": 6,
+        "without": 2
+      },
+      "hasFix": false,
+      "message": "2 of 8 drawers have no knob or pull handle: the BOM has 6 for 8 drawers. Add the missing ones, or confirm these drawers open another way (push-to-open, finger groove)."
+    },
+    {
+      "rule": "face-frame-gap",
+      "severity": "warn",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "length": 1505,
+        "opening": 1587,
+        "gap": 41,
+        "height": 149
+      },
+      "hasFix": false,
+      "message": "\"frame depan datar bawah\" is 1505 mm, but the space between the legs at that height is 1587 mm, so the front frame has a 41 mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong."
+    },
+    {
+      "rule": "face-frame-gap",
+      "severity": "warn",
+      "confidence": "medium",
+      "team": "engineering",
+      "numbers": {
+        "length": 1505,
+        "opening": 1587,
+        "gap": 41,
+        "height": 891
+      },
+      "hasFix": false,
+      "message": "\"frame profil datar atas - bwh\" is 1505 mm, but the space between the legs at that height is 1587 mm, so the front frame has a 41 mm gap at each end. Either the length in the BOM or the joint the template assumes is wrong."
     },
     {
       "rule": "finish-coverage",

@@ -5,9 +5,13 @@ const shot = async (page: Page, name: string) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
 };
 
+/** These tests drive the advanced layout (board, command line, all tools); simple.spec.ts covers the default one. */
 async function login(page: Page, userId: string) {
+  await page.addInitScript(() => localStorage.setItem('bom.prefs.v1', JSON.stringify({ mode: 'advanced', guideHidden: true })));
   await page.goto('/login');
   await page.getByTestId(`login-${userId}`).click();
+  await expect(page.getByTestId('home')).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId('home-board').click();
   await page.waitForURL(/\/board\//);
   await expect(page.getByTestId('board')).toBeVisible();
   await page.getByLabel('Language').selectOption('en');
@@ -61,7 +65,7 @@ test('view commands reach the 3D frame after working in the BOM table', async ({
 
 test('AI optimize: suggestion with per-change review, compare frame, accept', async ({ page }) => {
   await login(page, 'u_margono');
-  await page.locator('[data-type="viewport"]').first().click({ position: { x: 200, y: 10 } });
+  await page.locator('[data-type="viewport"]').first().click({ position: { x: 200, y: 160 } });
   await page.getByTestId('ai-optimize').click();
   await expect(page.getByTestId('ai-panel')).toContainText('After all accepted', { timeout: 30_000 });
   await expect(page.getByTestId('compare')).toBeVisible();
@@ -73,7 +77,7 @@ test('AI optimize: suggestion with per-change review, compare frame, accept', as
 
 test('review lanes, meeting setup and markup note', async ({ page }) => {
   await login(page, 'u_margono');
-  await page.locator('[data-type="viewport"]').first().click({ position: { x: 200, y: 10 } });
+  await page.locator('[data-type="viewport"]').first().click({ position: { x: 200, y: 160 } });
   await page.getByTestId('tab-review').click();
   await expect(page.getByTestId('review')).toContainText('Packing');
   await shot(page, '04-review');
@@ -82,14 +86,15 @@ test('review lanes, meeting setup and markup note', async ({ page }) => {
   await page.getByTestId('join-mtg_ns_r5').click();
   await expect(page.getByTestId('meeting-panel')).toContainText('Agenda');
   await shot(page, '05-meeting');
-  // Sticky note on empty board space.
+  // Sticky note on empty board space (left of the frames, once the left panel is folded away).
+  await page.getByLabel('Collapse panel').first().click();
   await page.getByTestId('tool-note').click();
   const board = page.getByTestId('board');
   const box = (await board.boundingBox())!;
-  await page.mouse.click(box.x + 12, box.y + 260);
+  await page.mouse.click(box.x + 120, box.y + 300);
   await expect(page.getByPlaceholder('Note…')).toBeFocused();
   await page.keyboard.type('Check the reveal gap on the top drawer');
-  await page.mouse.click(box.x + 12, box.y + box.height - 40);
+  await page.mouse.click(box.x + 120, box.y + box.height - 160);
   await expect(page.getByText('Check the reveal gap on the top drawer')).toBeVisible();
   await shot(page, '06-note');
 });
@@ -123,6 +128,7 @@ test('two tabs co-edit live (BroadcastChannel sync) and see each other', async (
 
 test('import a workbook through the match preview', async ({ page }) => {
   await login(page, 'u_sari');
+  await page.locator('.more-menu > summary').click();
   await page.getByTestId('open-import').click();
   await page.getByTestId('import-file').setInputFiles(new URL('../../../fixtures/products/hollan-house-curated-craftsman.xlsx', import.meta.url).pathname);
   await page.getByTestId('import-preview').click();
@@ -137,6 +143,7 @@ test('password-protected original workbook imports (local only)', async ({ page 
   const { existsSync } = await import('node:fs');
   test.skip(!process.env.HOLLAN_PASSWORD || !existsSync(file), 'needs the private workbook and HOLLAN_PASSWORD');
   await login(page, 'u_sari');
+  await page.locator('.more-menu > summary').click();
   await page.getByTestId('open-import').click();
   await page.getByTestId('import-file').setInputFiles(file);
   await page.getByTestId('import-preview').click();

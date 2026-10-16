@@ -435,12 +435,21 @@ export function layoutCase(ix: ContentIndex, params: Record<string, number>, set
     const b = slot.box;
     pl.put(p, i, v3(left ? b.min.x - s.x : b.max.x, (b.min.y + b.max.y) / 2 - s.y / 2, b.max.z - s.z), { group: `${slot.assemblyId}#${slot.asmInstance}`, moving: true, explode: v3(0, 0, EXPLODE * 1.4), envelope: null });
   });
-  for (const role of ['knob', 'handle']) {
-    const inst = ix.role(role).flatMap((p) => Array.from({ length: instanceCount(p) }, (_, i) => ({ p, i })));
-    if (!inst.length || !drawerSlots.length) continue;
-    const per = Math.max(1, Math.round(inst.length / drawerSlots.length));
+  // Knobs go to the narrowest drawers, pulls to the widest ones that have no knob (the Chest: knobs on
+  // the two small top drawers, pulls on the four big ones). More than one per drawer when the count says so.
+  const byWidth = [...drawerSlots].sort((a, b) => a.cell.x1 - a.cell.x0 - (b.cell.x1 - b.cell.x0));
+  const knobInst = ix.role('knob').flatMap((p) => Array.from({ length: instanceCount(p) }, (_, i) => ({ p, i })));
+  const pullInst = ix.role('handle').flatMap((p) => Array.from({ length: instanceCount(p) }, (_, i) => ({ p, i })));
+  const knobSlots = knobInst.length >= byWidth.length ? byWidth : byWidth.slice(0, knobInst.length);
+  const noKnob = byWidth.filter((sl) => !knobSlots.includes(sl)).reverse();
+  const pullSlots = !noKnob.length || pullInst.length > noKnob.length * 2 ? [...byWidth].reverse() : pullInst.length <= noKnob.length ? noKnob.slice(0, pullInst.length) : noKnob;
+  for (const [inst, targets] of [[knobInst, knobSlots], [pullInst, pullSlots]] as const) {
+    if (!inst.length || !targets.length) continue;
+    // Keep top-to-bottom, left-to-right order on the front.
+    const ordered = drawerSlots.filter((sl) => targets.includes(sl));
+    const per = Math.max(1, Math.round(inst.length / ordered.length));
     inst.forEach(({ p, i }, n) => {
-      const slot = drawerSlots[Math.floor(n / per)];
+      const slot = ordered[Math.floor(n / per)];
       if (!slot) return;
       const s = pl.sizeOf(p, null).size;
       const c = slot.cell;

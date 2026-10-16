@@ -92,6 +92,12 @@ export function useLiveVersion(): number {
   return useSyncExternalStore(live.subscribe, () => live.version, () => 0);
 }
 
+/** Re-render on presence changes (cursors, people here, follow). */
+export function usePresenceVersion(): number {
+  const { live } = useEditor();
+  return useSyncExternalStore(live.presenceBus.subscribe, () => live.presenceBus.version, () => 0);
+}
+
 export function useRevision(id: string | null | undefined): RevisionLive | null {
   const { live } = useEditor();
   const rev = id ? live.revision(id) : null;

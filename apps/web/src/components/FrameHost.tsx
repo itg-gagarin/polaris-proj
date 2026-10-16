@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { FrameItem, FrameType } from '@bom/domain';
 import { applyPatches, DEFAULT_SETTINGS } from '@bom/domain';
 import { useEditor, useRevision, useT } from '@/lib/editor';
@@ -12,15 +12,24 @@ import { Assumptions } from './frames/Assumptions';
 import { Compare } from './frames/Compare';
 
 /** One frame on the board, positioned in screen space (so 3D renders at real resolution). */
-export function FrameHost({ item, screen, onStartDrag, onStartResize, onRemove }: { item: FrameItem; screen: { x: number; y: number; w: number; h: number; zoom: number }; onStartDrag: (e: React.PointerEvent) => void; onStartResize: (e: React.PointerEvent) => void; onRemove: () => void }) {
+type FrameHostProps = { item: FrameItem; screen: { x: number; y: number; w: number; h: number; zoom: number }; onStartDrag: (e: React.PointerEvent) => void; onStartResize: (e: React.PointerEvent) => void; onRemove: () => void };
+
+/** Re-render only when the frame itself or its place on screen changes (handlers are stable in effect). */
+export const FrameHost = memo(FrameHostInner, (a, b) => a.item === b.item && a.screen.x === b.screen.x && a.screen.y === b.screen.y && a.screen.w === b.screen.w && a.screen.h === b.screen.h && a.screen.zoom === b.screen.zoom);
+
+function FrameHostInner({ item, screen, onStartDrag, onStartResize, onRemove }: FrameHostProps) {
   const t = useT();
   const { revisions, boot } = useEditor();
-  const ui = useUi();
-  const history = ui.historyRevisionId;
+  const history = useUi((s) => s.historyRevisionId);
+  const frameView = useUi((s) => s.frameViews[item.id]);
+  const activeFrameId = useUi((s) => s.activeFrameId);
+  const aiSuggestion = useUi((s) => s.ai.suggestion);
+  const aiAccepted = useUi((s) => s.ai.accepted);
+  const ui = { activeFrameId, ai: { suggestion: aiSuggestion, accepted: aiAccepted } };
   const histRev = history ? revisions.get(history) : null;
   const shownId = histRev && item.productId === histRev.productId && item.type !== 'compare' ? history : item.revisionId;
   const rev = useRevision(shownId);
-  const view = ui.frameViews[item.id] ?? defaultFrameView(item.props);
+  const view = frameView ?? defaultFrameView(item.props);
   const set = (p: Partial<typeof view>) => useUi.getState().setFrameView(item.id, p);
   const active = ui.activeFrameId === item.id;
   const content = rev?.content;
